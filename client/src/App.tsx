@@ -47,9 +47,11 @@ export default function App() {
   const [wordList, setWordList] = useState<WordEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [proximityMap, setProximityMap] = useState<ProximityMap>({});
+  const [proximityWordMap, setProximityWordMap] = useState<Record<string, string>>({});
   const [soundMuted, setSoundMuted] = useState(false);
 
   const notifId = useRef(0);
+  const lastMissWordRef = useRef<string>('');
 
   const notify = useCallback((message: string, type: Notif['type'] = 'info') => {
     const id = String(notifId.current++);
@@ -102,6 +104,7 @@ export default function App() {
         if (updatedRoom.game.status === 'waiting' && prev === 'game') {
           setWordList([]);
           setProximityMap({});
+          setProximityWordMap({});
           return 'waiting';
         }
         return prev;
@@ -113,6 +116,7 @@ export default function App() {
       setPage('game');
       setWordList([]);
       setProximityMap({});
+      setProximityWordMap({});
     });
 
     socket.on('game-loading', (loading: boolean) => setIsLoading(loading));
@@ -143,6 +147,7 @@ export default function App() {
 
     socket.on('word-feedback', (payload: { result: string; word: string }) => {
       if (payload.result === 'not-found') {
+        lastMissWordRef.current = payload.word;
         trackWord(payload.word, 'miss');
         sounds.playNotFound();
       } else if (payload.result === 'too-common') {
@@ -155,6 +160,7 @@ export default function App() {
     });
 
     socket.on('proximity-update', (payload: { map: ProximityMap }) => {
+      const guessWord = lastMissWordRef.current;
       setProximityMap((prev) => {
         const merged: ProximityMap = { ...prev };
         for (const [k, v] of Object.entries(payload.map)) {
@@ -162,6 +168,15 @@ export default function App() {
         }
         return merged;
       });
+      if (guessWord) {
+        setProximityWordMap((prev) => {
+          const next = { ...prev };
+          for (const [k, v] of Object.entries(payload.map)) {
+            if (v > 0.25) next[k] = guessWord;
+          }
+          return next;
+        });
+      }
     });
 
     socket.on('emoji-broadcast', (payload: EmojiPayload) => {
@@ -197,6 +212,19 @@ export default function App() {
     notify(`Joined room ${rid}`, 'success');
   }, [notify]);
 
+  const handleLeave = useCallback(() => {
+    socket.emit('leave-room');
+    clearSession();
+    setRoom(null);
+    setPlayerId('');
+    playerIdRef.current = '';
+    setMessages([]);
+    setWordList([]);
+    setProximityMap({});
+    setProximityWordMap({});
+    setPage('lobby');
+  }, []);
+
   const toggleSound = () => setSoundMuted(sounds.toggle());
 
   return (
@@ -223,9 +251,11 @@ export default function App() {
             wordList={wordList}
             isLoading={isLoading}
             proximityMap={proximityMap}
+            proximityWordMap={proximityWordMap}
             soundMuted={soundMuted}
             onToggleSound={toggleSound}
             onWordSubmit={handleWordSubmit}
+            onLeave={handleLeave}
           />
         )}
 
@@ -235,9 +265,9 @@ export default function App() {
             key={fe.id}
             className="floating-emoji"
             style={{ left: `${fe.x}%` }}
-            title={fe.playerName}
           >
-            {fe.emoji}
+            <span className="floating-emoji-icon">{fe.emoji}</span>
+            <span className="floating-emoji-name">{fe.playerName}</span>
           </div>
         ))}
 

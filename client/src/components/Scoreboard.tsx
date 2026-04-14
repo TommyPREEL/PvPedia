@@ -1,5 +1,8 @@
+import { useState, useMemo } from 'react';
 import { ClientPlayer, GameStatus } from '../types';
 import { useT } from '../App';
+
+type SortMode = 'rank' | 'time' | 'words';
 
 interface Props {
   players: ClientPlayer[];
@@ -19,13 +22,29 @@ const MEDALS = ['🥇', '🥈', '🥉'];
 
 export default function Scoreboard({ players, playerId, gameStatus, compact }: Props) {
   const t = useT();
+  const [sortMode, setSortMode] = useState<SortMode>('rank');
 
-  const sorted = [...players].sort((a, b) => {
-    if (a.score.hasWon && b.score.hasWon) return (a.score.rank ?? 99) - (b.score.rank ?? 99);
-    if (a.score.hasWon) return -1;
-    if (b.score.hasWon) return 1;
-    return b.score.wordsRevealedFirst - a.score.wordsRevealedFirst;
-  });
+  const sorted = useMemo(() => {
+    const arr = [...players];
+    if (sortMode === 'time') {
+      return arr.sort((a, b) => {
+        if (a.score.hasWon && b.score.hasWon) return (a.score.winTime ?? Infinity) - (b.score.winTime ?? Infinity);
+        if (a.score.hasWon) return -1;
+        if (b.score.hasWon) return 1;
+        return 0;
+      });
+    }
+    if (sortMode === 'words') {
+      return arr.sort((a, b) => a.score.wordsSubmitted - b.score.wordsSubmitted);
+    }
+    // rank (default)
+    return arr.sort((a, b) => {
+      if (a.score.hasWon && b.score.hasWon) return (a.score.rank ?? 99) - (b.score.rank ?? 99);
+      if (a.score.hasWon) return -1;
+      if (b.score.hasWon) return 1;
+      return b.score.wordsRevealedFirst - a.score.wordsRevealedFirst;
+    });
+  }, [players, sortMode]);
 
   return (
     <div className={compact ? 'p-2' : 'p-3'}>
@@ -34,6 +53,23 @@ export default function Scoreboard({ players, playerId, gameStatus, compact }: P
           {t('scoreboard')}
         </h2>
       )}
+      {/* Sort tabs */}
+      <div className="flex text-xs border-b border-slate-700/40 mb-2">
+        {(['rank', 'time', 'words'] as SortMode[]).map((mode) => (
+          <button
+            key={mode}
+            onClick={() => setSortMode(mode)}
+            className={`flex-1 py-1 transition-colors duration-150 ${
+              sortMode === mode
+                ? 'text-indigo-400 border-b-2 border-indigo-500 -mb-px font-semibold'
+                : 'text-slate-500 hover:text-slate-300'
+            }`}
+          >
+            {mode === 'rank' ? '🏆' : mode === 'time' ? '⏱' : '📊'}
+            {!compact && <span className="ml-1">{mode === 'rank' ? 'Rank' : mode === 'time' ? 'Time' : 'Words'}</span>}
+          </button>
+        ))}
+      </div>
       <div className="space-y-1">
         {sorted.map((player, idx) => {
           const isMe = player.id === playerId;

@@ -19,9 +19,11 @@ interface Props {
   wordList: WordEntry[];
   isLoading: boolean;
   proximityMap: ProximityMap;
+  proximityWordMap: Record<string, string>;
   soundMuted: boolean;
   onToggleSound: () => void;
   onWordSubmit: (word: string, status: WordEntry['status']) => void;
+  onLeave: () => void;
 }
 
 function useWindowWidth() {
@@ -35,8 +37,8 @@ function useWindowWidth() {
 }
 
 export default function GamePage({
-  room, playerId, messages, wordList, isLoading, proximityMap,
-  soundMuted, onToggleSound, onWordSubmit,
+  room, playerId, messages, wordList, isLoading, proximityMap, proximityWordMap,
+  soundMuted, onToggleSound, onWordSubmit, onLeave,
 }: Props) {
   const { uiLang, setUILang, t } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -56,6 +58,8 @@ export default function GamePage({
   const focusInput = () => inputRef.current?.focus();
 
   const handleNewGame = () => socket.emit('new-game', (r: { error?: string }) => { if (r?.error) alert(r.error); });
+  const handleQuickRestart = () => socket.emit('quick-restart', (r: { error?: string }) => { if (r?.error) alert(r.error); });
+  const handleLeave = () => { if (confirm('Leave the room?')) onLeave(); };
 
   // Auto-switch to article tab on game start
   useEffect(() => { setActiveTab('article'); }, [room.game.status]);
@@ -119,11 +123,24 @@ export default function GamePage({
             {soundMuted ? '🔇' : '🔊'}
           </button>
 
+          {/* Quick restart — leader, any time */}
+          {isLeader && !isLoading && (
+            <button onClick={handleQuickRestart} className="btn-secondary text-xs py-1.5 px-2.5" title={t('quickRestart')}>
+              ⚡ {t('quickRestart')}
+            </button>
+          )}
+
+          {/* New game (waiting room flow) — leader, only after finish */}
           {gameFinished && isLeader && (
             <button onClick={handleNewGame} className="btn-primary text-xs py-1.5 px-2.5">
               {t('newGame')}
             </button>
           )}
+
+          {/* Leave */}
+          <button onClick={handleLeave} className="btn-ghost text-xs py-1.5 px-2 text-slate-500 hover:text-red-400" title={t('leaveGame')}>
+            🚪
+          </button>
         </div>
       </header>
 
@@ -172,6 +189,7 @@ export default function GamePage({
             revealedWords={room.game.revealedWords}
             articleTitle={room.game.articleTitle}
             proximityMap={proximityMap}
+            proximityWordMap={proximityWordMap}
             onHiddenWordClick={focusInput}
           />
         </main>

@@ -178,6 +178,48 @@ io.on('connection', (socket: Socket) => {
     cb?.({});
   });
 
+  // ── QUICK RESTART ─────────────────────────────────────────────────────────────
+  socket.on('quick-restart', async (cb?: (res: { error?: string }) => void) => {
+    const meta = socketToRoom.get(socket.id);
+    if (!meta) return cb?.({ error: 'Not in a room' });
+
+    const room = getRoom(meta.roomCode);
+    if (!room) return cb?.({ error: 'Room not found' });
+    if (room.leaderId !== meta.playerId) return cb?.({ error: 'Not the leader' });
+
+    try {
+      io.to(meta.roomCode).emit('game-loading', true);
+      const article = await fetchRandomArticle(room.language);
+      const tokens = tokenizeText(article.extract);
+      const updatedRoom = startGame(meta.roomCode, tokens, article.title);
+      if (!updatedRoom) return cb?.({ error: 'Failed to start game' });
+      io.to(meta.roomCode).emit('game-loading', false);
+      systemMessage(meta.roomCode, '⚡ New round started!');
+      io.to(meta.roomCode).emit('game-started', serializeRoom(updatedRoom));
+      cb?.({});
+    } catch {
+      io.to(meta.roomCode).emit('game-loading', false);
+      cb?.({ error: 'Failed to fetch article. Try again.' });
+    }
+  });
+
+  // ── LEAVE ROOM ─────────────────────────────────────────────────────────────────
+  socket.on('leave-room', () => {
+    const meta = socketToRoom.get(socket.id);
+    if (!meta) return;
+    socketToRoom.delete(socket.id);
+    socket.leave(meta.roomCode);
+
+    const room = getRoom(meta.roomCode);
+    if (!room) return;
+    const playerName = room.players.get(meta.playerId)?.name ?? 'Someone';
+    const updatedRoom = removePlayer(meta.roomCode, meta.playerId);
+    if (updatedRoom) {
+      systemMessage(meta.roomCode, `${playerName} left the room`);
+      broadcastRoom(meta.roomCode);
+    }
+  });
+
   // ── SUBMIT WORD ──────────────────────────────────────────────────────────────
   socket.on('submit-word', async (
     word: string,

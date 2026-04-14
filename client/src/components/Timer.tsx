@@ -14,6 +14,12 @@ function format(ms: number): string {
   return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
 }
 
+function colorClass(ms: number): string {
+  if (ms < 60_000) return 'text-emerald-400';
+  if (ms < 180_000) return 'text-amber-400';
+  return 'text-red-400';
+}
+
 export default function Timer({ startTime, running }: Props) {
   const [elapsed, setElapsed] = useState(0);
 
@@ -28,10 +34,14 @@ export default function Timer({ startTime, running }: Props) {
 
   if (!startTime) return null;
 
+  const color = colorClass(elapsed);
+
   return (
-    <div className="flex items-center gap-1 text-xs flex-shrink-0">
-      <span className="text-slate-500">⏱</span>
-      <span className="font-mono font-semibold text-slate-200">{format(elapsed)}</span>
+    <div className={`flex items-center gap-1.5 flex-shrink-0 ${color}`}>
+      {running && <span className="timer-pulse-dot" />}
+      <span className="font-mono font-bold text-base tabular-nums tracking-tight">
+        {format(elapsed)}
+      </span>
     </div>
   );
 }

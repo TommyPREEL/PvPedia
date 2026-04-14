@@ -41,6 +41,8 @@ const T = {
     guesses: 'guesses',
     revealed: 'revealed',
     newGame: 'New game',
+    quickRestart: 'Instant restart',
+    leaveGame: 'Leave game',
     // Win banner
     theAnswerWas: '🎉 The answer was:',
     canStartNewGame: 'You can start a new game above.',
@@ -110,6 +112,8 @@ const T = {
     guesses: 'essais',
     revealed: 'révélés',
     newGame: 'Nouvelle partie',
+    quickRestart: 'Restart instantané',
+    leaveGame: 'Quitter',
     theAnswerWas: '🎉 La réponse était :',
     canStartNewGame: 'Tu peux lancer une nouvelle partie ci-dessus.',
     article: 'Article',

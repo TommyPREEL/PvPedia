@@ -7,6 +7,7 @@ interface Props {
   revealedWords: string[];
   articleTitle?: string;
   proximityMap: ProximityMap;
+  proximityWordMap: Record<string, string>;
   onHiddenWordClick: () => void;
 }
 
@@ -17,7 +18,7 @@ function normalizeForTitle(s: string): string {
 interface HintState { text: string; tokenIndex: number }
 
 export default function ArticleDisplay({
-  tokens, revealedWords, articleTitle, proximityMap, onHiddenWordClick,
+  tokens, revealedWords, articleTitle, proximityMap, proximityWordMap, onHiddenWordClick,
 }: Props) {
   const revealedSet = new Set(revealedWords);
   const [hint, setHint] = useState<HintState | null>(null);
@@ -49,8 +50,30 @@ export default function ArticleDisplay({
     );
   }
 
+  const titleWords = articleTitle ? articleTitle.split(/\s+/).filter(Boolean) : [];
+
   return (
     <div className="article-text text-[0.95rem] leading-loose text-slate-200 select-text">
+      {titleWords.length > 0 && (
+        <div className="title-display">
+          <p className="text-xs text-slate-500 uppercase tracking-widest mb-3 text-center">Find the article</p>
+          <div className="flex flex-wrap justify-center gap-x-3 gap-y-2 items-center mb-8">
+            {titleWords.map((word, wi) => {
+              const norm = normalizeForTitle(word);
+              const isRevealed = revealedSet.has(norm);
+              return isRevealed ? (
+                <span key={wi} className="title-word-revealed-block">{word}</span>
+              ) : (
+                <span
+                  key={wi}
+                  className="title-word-hidden-block"
+                  style={{ width: `${Math.max(word.length * 1.1, 2)}ch` }}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
       {tokens.map((token, i) => {
         if (token.type === 'other') {
           return <span key={i}>{token.value}</span>;
@@ -73,6 +96,9 @@ export default function ArticleDisplay({
         const hasProximity = score != null && score > 0.04;
         const bgColor = hasProximity ? proximityColor(score) : undefined;
 
+        const proximityWord = proximityWordMap[norm];
+        const showPlaceholder = !!proximityWord && score != null && score > 0.25 && token.length >= 4;
+
         const isShowingHint = hint?.tokenIndex === i;
 
         return (
@@ -92,6 +118,9 @@ export default function ArticleDisplay({
               hintTimer.current = setTimeout(() => setHint(null), 400);
             }}
           >
+            {showPlaceholder && !isShowingHint && (
+              <span className="proximity-placeholder">{proximityWord}</span>
+            )}
             {isShowingHint && (
               <span className="hint-tooltip">
                 {token.length} letter{token.length !== 1 ? 's' : ''}
