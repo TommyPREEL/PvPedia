@@ -1,0 +1,27 @@
+services:
+  pvpedia-server:
+    container_name: pvpedia-server
+    image: ${SERVER_IMAGE:-ghcr.io/tommypreel/pvpedia-server:latest}
+    restart: always
+    environment:
+      - PORT=3650
+    expose:
+      - "3650"
+    networks:
+      - web
+
+  pvpedia-client:
+    container_name: pvpedia-client
+    image: ${CLIENT_IMAGE:-ghcr.io/tommypreel/pvpedia-client:latest}
+    restart: always
+    ports:
+      - "3600:80"
+    depends_on:
+      - pvpedia-server
+    networks:
+      - web
+
+networks:
+  web:
+    external: true
+    name: web
