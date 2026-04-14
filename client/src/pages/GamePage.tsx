@@ -9,6 +9,7 @@ import Timer from '../components/Timer';
 import EmojiPanel from '../components/EmojiPanel';
 import WordList from '../components/WordList';
 import { useI18n } from '../App';
+import { TKey } from '../i18n';
 
 type MobileTab = 'article' | 'words' | 'chat';
 
@@ -26,6 +27,49 @@ interface Props {
   onLeave: () => void;
 }
 
+// ── Reusable modal dialog ────────────────────────────────────────────────────
+interface DialogAction { label: string; onClick: () => void; variant?: 'danger' | 'primary' | 'secondary' }
+interface DialogProps {
+  titleKey: TKey;
+  bodyKey: TKey;
+  actions: DialogAction[];
+  onClose: () => void;
+}
+function ConfirmDialog({ titleKey, bodyKey, actions, onClose }: DialogProps) {
+  const { t } = useI18n();
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-slate-800 border border-slate-700 rounded-xl shadow-2xl max-w-sm w-full p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-white font-semibold text-base mb-2">{t(titleKey)}</h3>
+        <p className="text-slate-400 text-sm mb-5">{t(bodyKey)}</p>
+        <div className="flex flex-col gap-2">
+          {actions.map((a, i) => (
+            <button
+              key={i}
+              onClick={() => { a.onClick(); onClose(); }}
+              className={`w-full py-2 px-4 rounded-lg text-sm font-medium transition-colors
+                ${a.variant === 'danger'    ? 'bg-red-700 hover:bg-red-600 text-white' :
+                  a.variant === 'primary'   ? 'bg-indigo-600 hover:bg-indigo-500 text-white' :
+                                              'bg-slate-700 hover:bg-slate-600 text-slate-200'}`}
+            >
+              {a.label}
+            </button>
+          ))}
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 text-xs mt-1 text-center">
+            {t('confirmCancel')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function useWindowWidth() {
   const [w, setW] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
   useEffect(() => {
@@ -40,9 +84,10 @@ export default function GamePage({
   room, playerId, messages, wordList, isLoading, proximityMap, proximityWordMap,
   soundMuted, onToggleSound, onWordSubmit, onLeave,
 }: Props) {
-  const { uiLang, setUILang, t } = useI18n();
+  const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<MobileTab>('article');
+  const [dialog, setDialog] = useState<DialogProps | null>(null);
   const width = useWindowWidth();
 
   const isMobile = width < 820;
@@ -57,16 +102,55 @@ export default function GamePage({
 
   const focusInput = () => inputRef.current?.focus();
 
-  const handleNewGame = () => socket.emit('new-game', (r: { error?: string }) => { if (r?.error) alert(r.error); });
-  const handleQuickRestart = () => socket.emit('quick-restart', (r: { error?: string }) => { if (r?.error) alert(r.error); });
-  const handleLeave = () => { if (confirm('Leave the room?')) onLeave(); };
+  const openDialog = (props: Omit<DialogProps, 'onClose'>) =>
+    setDialog({ ...props, onClose: () => setDialog(null) });
 
-  const handleRevealAll = () => {
-    if (!confirm('Reveal the entire article for everyone?')) return;
-    socket.emit('reveal-all-words', (res: { error?: string }) => {
-      if (res?.error) alert(res.error);
+  const handleNewGame = () =>
+    socket.emit('new-game', (r: { error?: string }) => {
+      if (r?.error) openDialog({ titleKey: 'newGame', bodyKey: 'newGame', actions: [{ label: r.error, onClick: () => {} }] });
     });
-  };
+
+  const handleQuickRestart = () =>
+    socket.emit('quick-restart', (r: { error?: string }) => {
+      if (r?.error) openDialog({ titleKey: 'quickRestart', bodyKey: 'quickRestart', actions: [{ label: r.error, onClick: () => {} }] });
+    });
+
+  const handleLeave = () =>
+    openDialog({
+      titleKey: 'confirmLeaveTitle',
+      bodyKey: 'confirmLeaveBody',
+      actions: [{ label: t('confirmLeaveBtn'), onClick: onLeave, variant: 'danger' }],
+    });
+
+  const handleReveal = () =>
+    openDialog({
+      titleKey: 'revealDescTitle',
+      bodyKey: 'revealDescBody',
+      actions: [
+        {
+          label: t('revealDescBtn'),
+          variant: 'secondary',
+          onClick: () => socket.emit('reveal-description', (res: { error?: string }) => {
+            if (res?.error) openDialog({ titleKey: 'revealDescTitle', bodyKey: 'revealDescBody', actions: [{ label: res.error, onClick: () => {} }] });
+          }),
+        },
+        {
+          label: t('revealAllBtn'),
+          variant: 'danger',
+          onClick: () => openDialog({
+            titleKey: 'revealAllTitle',
+            bodyKey: 'revealAllBody',
+            actions: [{
+              label: t('revealAllBtn'),
+              variant: 'danger',
+              onClick: () => socket.emit('reveal-all-words', (res: { error?: string }) => {
+                if (res?.error) openDialog({ titleKey: 'revealAllTitle', bodyKey: 'revealAllBody', actions: [{ label: res.error, onClick: () => {} }] });
+              }),
+            }],
+          }),
+        },
+      ],
+    });
 
   // Auto-switch to article tab on game start
   useEffect(() => { setActiveTab('article'); }, [room.game.status]);
@@ -79,6 +163,9 @@ export default function GamePage({
 
   return (
     <div className="flex flex-col overflow-hidden" style={{ height: '100dvh' }}>
+
+      {/* ─── Modal dialog ────────────────────────────────────── */}
+      {dialog && <ConfirmDialog {...dialog} />}
 
       {/* ─── Top bar ─────────────────────────────────────────── */}
       <header className="flex-shrink-0 bg-slate-900 border-b border-slate-700/50 px-3 py-2
@@ -133,12 +220,12 @@ export default function GamePage({
             {soundMuted ? '🔇' : '🔊'}
           </button>
 
-          {/* Reveal all — leader, game in progress */}
+          {/* Reveal — leader, game in progress */}
           {isLeader && !gameFinished && !isLoading && (
             <button
-              onClick={handleRevealAll}
+              onClick={handleReveal}
               className="btn-secondary text-xs py-1.5 px-2.5 border-amber-500/40 hover:border-amber-400 text-amber-300"
-              title={t('revealWord')}
+              title={t('revealWordHint')}
             >
               {t('revealWordHint')}
             </button>

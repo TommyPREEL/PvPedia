@@ -255,7 +255,30 @@ io.on('connection', (socket: Socket) => {
     }
   });
 
-  // ── REVEAL ALL WORDS (leader, reveals entire article for everyone) ──────────
+  // ── REVEAL DESCRIPTION (leader, reveals body words only, title stays hidden) ─
+  socket.on('reveal-description', (cb?: (res: { error?: string }) => void) => {
+    const meta = socketToRoom.get(socket.id);
+    if (!meta) return cb?.({ error: 'Not in a room' });
+
+    const room = getRoom(meta.roomCode);
+    if (!room) return cb?.({ error: 'Room not found' });
+    if (room.leaderId !== meta.playerId) return cb?.({ error: 'Not the leader' });
+    if (room.game.status !== 'playing') return cb?.({ error: 'Game not running' });
+
+    const targetNorm = room.game.targetNormalized;
+    for (const t of room.game.tokens) {
+      if (t.type === 'word' && t.normalized && t.normalized !== targetNorm) {
+        room.game.revealedWords.add(t.normalized);
+      }
+    }
+
+    // Game keeps running — title still hidden, players can still win
+    systemMessage(meta.roomCode, `💡 Leader revealed the article body!`);
+    broadcastRoom(meta.roomCode);
+    cb?.({});
+  });
+
+  // ── REVEAL ALL WORDS (leader, reveals entire article + title, ends game) ──────
   socket.on('reveal-all-words', (cb?: (res: { error?: string }) => void) => {
     const meta = socketToRoom.get(socket.id);
     if (!meta) return cb?.({ error: 'Not in a room' });

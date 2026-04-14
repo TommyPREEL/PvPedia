@@ -117,6 +117,8 @@ export default function App() {
       setWordList([]);
       setProximityMap({});
       setProximityWordMap({});
+      // Sync UI language to the room's game language
+      setUILang(updatedRoom.language as UILang);
     });
 
     socket.on('game-loading', (loading: boolean) => setIsLoading(loading));

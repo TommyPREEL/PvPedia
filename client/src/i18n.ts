@@ -55,6 +55,18 @@ const T = {
     revealWordActive: '💡 Cancel',
     revealWordReveal: 'Reveal',
     revealWordSuccess: '💡 \'{{word}}\' revealed for everyone!',
+    // Reveal confirmation dialog
+    revealDescTitle: 'Reveal description?',
+    revealDescBody: 'Reveal all words in the article body for everyone. The title stays hidden — game continues.',
+    revealAllTitle: 'Reveal everything?',
+    revealAllBody: 'Reveal the title and the full article for everyone. The game will end.',
+    revealDescBtn: '📄 Description only',
+    revealAllBtn: '🏁 Title + description',
+    confirmCancel: 'Cancel',
+    // Generic confirm dialog
+    confirmLeaveTitle: 'Leave the room?',
+    confirmLeaveBody: 'You will lose your progress in the current game.',
+    confirmLeaveBtn: 'Leave',
     // Win banner
     theAnswerWas: '🎉 The answer was:',
     canStartNewGame: 'You can start a new game above.',
@@ -146,6 +158,18 @@ const T = {
     revealWordActive: '💡 Annuler',
     revealWordReveal: 'Révéler',
     revealWordSuccess: '💡 \'{{word}}\' révélé pour tout le monde !',
+    // Reveal confirmation dialog
+    revealDescTitle: 'Révéler la description ?',
+    revealDescBody: 'Révèle tous les mots du corps de l\'article pour tout le monde. Le titre reste caché — la partie continue.',
+    revealAllTitle: 'Tout révéler ?',
+    revealAllBody: 'Révèle le titre et l\'article complet pour tout le monde. La partie se terminera.',
+    revealDescBtn: '📄 Description seulement',
+    revealAllBtn: '🏁 Titre + description',
+    confirmCancel: 'Annuler',
+    // Generic confirm dialog
+    confirmLeaveTitle: 'Quitter la salle ?',
+    confirmLeaveBody: 'Tu perdras ta progression dans la partie en cours.',
+    confirmLeaveBtn: 'Quitter',
     theAnswerWas: '🎉 La réponse était :',
     canStartNewGame: 'Tu peux lancer une nouvelle partie ci-dessus.',
     article: 'Article',

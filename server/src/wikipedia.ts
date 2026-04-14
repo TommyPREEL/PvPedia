@@ -109,6 +109,22 @@ function dot(a: Float32Array, b: Float32Array): number {
   return s;
 }
 
+/** Levenshtein edit distance (iterative DP, O(n×m)). */
+function levenshtein(a: string, b: string): number {
+  const m = a.length, n = b.length;
+  const dp: number[] = Array.from({ length: n + 1 }, (_, i) => i);
+  for (let i = 1; i <= m; i++) {
+    let prev = dp[0];
+    dp[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const tmp = dp[j];
+      dp[j] = a[i - 1] === b[j - 1] ? prev : 1 + Math.min(prev, dp[j], dp[j - 1]);
+      prev = tmp;
+    }
+  }
+  return dp[n];
+}
+
 /**
  * Embed every article word in a single batched inference call.
  * Returns a Map of normalized word → L2-normalised embedding vector.
@@ -130,8 +146,10 @@ export async function buildArticleEmbeddings(
 
 /**
  * Compute proximity scores for a missed guess against cached article embeddings.
- * Returns { articleWord → score 0–1 } only for words above a meaningful threshold.
- * Cosine range [0.40, 1.0] is linearly mapped to score [0, 1].
+ * Combines two signals:
+ *  1. Cosine similarity from Xenova embeddings (semantic: mère ↔ père)
+ *  2. Levenshtein string similarity (morphological: un ↔ une, chat ↔ chats)
+ * Takes the max of both — whichever fires gives the score.
  */
 export async function getProximityMap(
   guessNorm: string,
@@ -144,8 +162,21 @@ export async function getProximityMap(
 
   const result: { [norm: string]: number } = {};
   for (const [word, vec] of articleEmbeddings) {
-    const cosine = dot(guessVec, vec); // vectors are normalised → dot = cosine
-    const score = Math.max(0, (cosine - 0.40) / 0.60); // map [0.40,1.0] → [0,1]
+    // ── Cosine score: map [0.35, 1.0] → [0, 1] ────────────────────────────
+    const cosine = dot(guessVec, vec);
+    const cosScore = Math.max(0, (cosine - 0.35) / 0.65);
+
+    // ── String score: morphological variants (edit distance) ───────────────
+    // Only fires when edit distance ≤ ⌊maxLen/3⌋ (e.g. "un"↔"une", "chat"↔"chats")
+    // but not for identical words (those are already revealed).
+    const ed = levenshtein(guessNorm, word);
+    const maxLen = Math.max(guessNorm.length, word.length);
+    const strScore =
+      ed > 0 && ed <= Math.floor(maxLen / 3)
+        ? 1 - ed / maxLen
+        : 0;
+
+    const score = Math.max(cosScore, strScore);
     if (score > 0) result[word] = Math.min(1, score);
   }
   return result;
