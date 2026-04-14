@@ -110,6 +110,9 @@ export function serializeRoom(room: Room): ClientRoom {
     winnerId: room.game.winnerId,
     winnerOrder: room.game.winnerOrder,
     articleTitle: finished ? room.game.articleTitle : undefined,
+    titleWordLengths: room.game.articleTitle
+      ? room.game.articleTitle.split(/\s+/).filter(Boolean).map((w) => w.length)
+      : [],
   };
   return {
     code: room.code,

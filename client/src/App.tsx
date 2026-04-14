@@ -131,14 +131,15 @@ export default function App() {
       if (payload.isWin) {
         notify(`🎉 ${payload.revealedByName} found: "${payload.articleTitle}"!`, 'success');
         setProximityMap({});
-        // Win sound: only if it was us
         if (payload.revealedBy === playerIdRef.current) sounds.playWin();
       } else {
-        notify(`💡 "${payload.normalized}" — ${payload.revealedByName}`, 'info');
+        // Leader hint reveal — add the word to everyone's word list
+        trackWord(payload.normalized, 'found');
+        notify(`💡 "${payload.normalized}" revealed by ${payload.revealedByName}`, 'info');
         if (payload.revealedBy === playerIdRef.current) {
-          sounds.playRevealed(); // own reveal
+          sounds.playRevealed();
         } else {
-          sounds.playOtherRevealed(); // someone else
+          sounds.playOtherRevealed();
         }
       }
     });
@@ -148,10 +149,8 @@ export default function App() {
     socket.on('word-feedback', (payload: { result: string; word: string }) => {
       if (payload.result === 'not-found') {
         lastMissWordRef.current = payload.word;
-        trackWord(payload.word, 'miss');
         sounds.playNotFound();
       } else if (payload.result === 'too-common') {
-        trackWord(payload.word, 'common');
         sounds.playTooCommon();
         notify(t('tooCommon', { word: payload.word }), 'info');
       } else if (payload.result === 'already-known') {

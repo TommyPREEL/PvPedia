@@ -8,7 +8,7 @@ import {
   addChatMessage, submitWord, startGame, serializeRoom, issueSession,
   getSession, deleteSession, startDisconnectGrace, cancelGrace, getArticleWordSet,
 } from './roomManager';
-import { fetchRandomArticle, tokenizeText, getProximityMap } from './wikipedia';
+import { fetchRandomArticle, tokenizeText, getProximityMap, normalizeWord } from './wikipedia';
 import { Language } from './types';
 
 const app = express();
@@ -218,6 +218,36 @@ io.on('connection', (socket: Socket) => {
       systemMessage(meta.roomCode, `${playerName} left the room`);
       broadcastRoom(meta.roomCode);
     }
+  });
+
+  // ── REVEAL WORD (leader hint) ──────────────────────────────────────────────
+  socket.on('reveal-word', (word: string, cb?: (res: { error?: string }) => void) => {
+    const meta = socketToRoom.get(socket.id);
+    if (!meta) return cb?.({ error: 'Not in a room' });
+
+    const room = getRoom(meta.roomCode);
+    if (!room) return cb?.({ error: 'Room not found' });
+    if (room.leaderId !== meta.playerId) return cb?.({ error: 'Not the leader' });
+    if (room.game.status !== 'playing') return cb?.({ error: 'Game not running' });
+
+    const normalized = normalizeWord(word.trim());
+    if (!normalized) return cb?.({ error: 'Invalid word' });
+    if (room.game.revealedWords.has(normalized)) return cb?.({ error: 'Already revealed' });
+
+    const exists = room.game.tokens.some((t) => t.type === 'word' && t.normalized === normalized);
+    if (!exists) return cb?.({ error: 'Word not in article' });
+
+    room.game.revealedWords.add(normalized);
+    io.to(meta.roomCode).emit('word-revealed', {
+      normalized,
+      revealedBy: meta.playerId,
+      revealedByName: '👑 Leader',
+      isWin: false,
+      totalRevealed: room.game.revealedWords.size,
+    });
+    systemMessage(meta.roomCode, `💡 Leader revealed a word hint`);
+    broadcastRoom(meta.roomCode);
+    cb?.({});
   });
 
   // ── SUBMIT WORD ──────────────────────────────────────────────────────────────

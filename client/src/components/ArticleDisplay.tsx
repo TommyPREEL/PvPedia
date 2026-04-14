@@ -6,6 +6,7 @@ interface Props {
   tokens: ClientToken[];
   revealedWords: string[];
   articleTitle?: string;
+  titleWordLengths: number[];
   proximityMap: ProximityMap;
   proximityWordMap: Record<string, string>;
   onHiddenWordClick: () => void;
@@ -18,7 +19,7 @@ function normalizeForTitle(s: string): string {
 interface HintState { text: string; tokenIndex: number }
 
 export default function ArticleDisplay({
-  tokens, revealedWords, articleTitle, proximityMap, proximityWordMap, onHiddenWordClick,
+  tokens, revealedWords, articleTitle, titleWordLengths, proximityMap, proximityWordMap, onHiddenWordClick,
 }: Props) {
   const revealedSet = new Set(revealedWords);
   const [hint, setHint] = useState<HintState | null>(null);
@@ -50,27 +51,31 @@ export default function ArticleDisplay({
     );
   }
 
+  // During gameplay articleTitle is hidden — use titleWordLengths for blank boxes.
+  // When finished, articleTitle is revealed — show actual words.
   const titleWords = articleTitle ? articleTitle.split(/\s+/).filter(Boolean) : [];
+  const showTitle = titleWordLengths.length > 0 || titleWords.length > 0;
 
   return (
     <div className="article-text text-[0.95rem] leading-loose text-slate-200 select-text">
-      {titleWords.length > 0 && (
+      {showTitle && (
         <div className="title-display">
           <p className="text-xs text-slate-500 uppercase tracking-widest mb-3 text-center">Find the article</p>
           <div className="flex flex-wrap justify-center gap-x-3 gap-y-2 items-center mb-8">
-            {titleWords.map((word, wi) => {
-              const norm = normalizeForTitle(word);
-              const isRevealed = revealedSet.has(norm);
-              return isRevealed ? (
-                <span key={wi} className="title-word-revealed-block">{word}</span>
-              ) : (
-                <span
-                  key={wi}
-                  className="title-word-hidden-block"
-                  style={{ width: `${Math.max(word.length * 1.1, 2)}ch` }}
-                />
-              );
-            })}
+            {articleTitle
+              ? /* Game finished — show actual words */
+                titleWords.map((word, wi) => (
+                  <span key={wi} className="title-word-revealed-block">{word}</span>
+                ))
+              : /* Game in progress — show blank boxes sized by word length */
+                titleWordLengths.map((len, wi) => (
+                  <span
+                    key={wi}
+                    className="title-word-hidden-block"
+                    style={{ width: `${Math.max(len * 1.1, 2)}ch` }}
+                  />
+                ))
+            }
           </div>
         </div>
       )}

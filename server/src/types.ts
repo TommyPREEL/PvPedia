@@ -80,6 +80,7 @@ export interface ClientGameState {
   winnerId?: string;
   winnerOrder: string[];
   articleTitle?: string; // only when finished
+  titleWordLengths: number[]; // always — shape of title without revealing words
 }
 
 export interface ClientPlayer {

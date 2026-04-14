@@ -33,6 +33,7 @@ export interface ClientGameState {
   winnerId?: string;
   winnerOrder: string[];
   articleTitle?: string;
+  titleWordLengths: number[];
 }
 
 export interface ClientRoom {
