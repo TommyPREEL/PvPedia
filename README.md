@@ -1,6 +1,6 @@
-# Pedantix Competitive
+# PvPedia
 
-A competitive multiplayer Pedantix clone — find the Wikipedia article title first!
+A competitive multiplayer Wikipedia word game — find the article title first!
 
 ## Quick start
 

@@ -108,7 +108,7 @@ export default function ArticleDisplay({
         const bgColor = hasProximity ? proximityColor(score) : undefined;
 
         const proximityWord = proximityWordMap[norm];
-        const showPlaceholder = !!proximityWord;
+        const showPlaceholder = !!proximityWord && token.length >= 4;
 
         const isShowingHint = hint?.tokenIndex === i;
 

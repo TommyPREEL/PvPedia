@@ -46,7 +46,7 @@ export async function fetchRandomArticle(language: Language): Promise<WikiSummar
         `${base}/page/random/summary`,
         {
           timeout: 8000,
-          headers: { 'User-Agent': 'PedantixCompetitive/1.0 (educational game)' },
+          headers: { 'User-Agent': 'PvPedia/1.0 (educational game)' },
         }
       );
 

@@ -21,7 +21,7 @@ export const useT = () => useContext(I18nContext).t;
 export const useI18n = () => useContext(I18nContext);
 
 // ---- Session helpers ----
-const SESSION_KEY = 'pedantix_session';
+const SESSION_KEY = 'pvpedia_session';
 function saveSession(d: StoredSession) { sessionStorage.setItem(SESSION_KEY, JSON.stringify(d)); }
 function loadSession(): StoredSession | null {
   try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) ?? 'null'); } catch { return null; }

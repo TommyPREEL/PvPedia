@@ -254,6 +254,10 @@ io.on('connection', (socket: Socket) => {
       }
     }
 
+    // End the game so the title is revealed too
+    room.game.status = 'finished';
+    if (room.timerInterval) { clearInterval(room.timerInterval); room.timerInterval = undefined; }
+
     systemMessage(meta.roomCode, `💡 Leader revealed the entire article!`);
     broadcastRoom(meta.roomCode);
     cb?.({});
@@ -426,5 +430,5 @@ app.get('/health', (_req, res) => res.json({ ok: true }));
 
 const PORT = process.env.PORT ?? 3850;
 httpServer.listen(PORT, () => {
-  console.log(`Pedantix Competitive server on port ${PORT}`);
+  console.log(`PvPedia server on port ${PORT}`);
 });

@@ -299,13 +299,13 @@ export function submitWord(code: string, playerId: string, word: string): Submit
     return { result: 'win', normalized, articleTitle: game.articleTitle, rank };
   }
 
-  // Stopword check
-  if (isStopword(normalized, room.language)) {
-    return { result: 'too-common', normalized };
-  }
-
   // Check article
   const exists = game.tokens.some((t) => t.type === 'word' && t.normalized === normalized);
+
+  // Stopword check — only block if the word is not actually in the article
+  if (!exists && isStopword(normalized, room.language)) {
+    return { result: 'too-common', normalized };
+  }
   if (!exists) return { result: 'not-found', normalized };
 
   if (room.gameMode === 'competitive') {

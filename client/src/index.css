@@ -229,12 +229,14 @@
   align-items: center;
   justify-content: center;
   color: rgba(255, 255, 255, 0.22);
-  font-size: 0.65em;
+  font-size: 0.55em;
   overflow: hidden;
   pointer-events: none;
   font-style: italic;
   white-space: nowrap;
+  text-overflow: ellipsis;
   font-weight: 600;
+  max-width: 100%;
 }
 
 /* ─── Timer pulse dot ───────────────────────────────────────────── */

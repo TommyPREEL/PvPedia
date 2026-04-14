@@ -28,7 +28,7 @@ export default function WaitingRoomPage({ room, playerId, messages, isLoading, s
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl xs:text-3xl font-bold text-white">
-              Pedantix <span className="text-indigo-400 font-light">{t('subtitle')}</span>
+              PvPedia <span className="text-indigo-400 font-light">{t('subtitle')}</span>
             </h1>
             <p className="text-slate-500 text-sm mt-0.5">{t('waitingFor')}</p>
           </div>

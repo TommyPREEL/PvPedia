@@ -67,7 +67,7 @@ export default function LobbyPage({ onJoined }: Props) {
         {/* Logo */}
         <div className="text-center mb-8">
           <h1 className="text-5xl font-bold text-white tracking-tight">
-            Pedantix
+            PvPedia
             <span className="text-indigo-400 ml-2 text-3xl font-light">{t('subtitle')}</span>
           </h1>
           <p className="text-slate-500 text-sm mt-2">{t('tagline')}</p>
