@@ -363,6 +363,14 @@ io.on('connection', (socket: Socket) => {
           });
         }
         broadcastRoom(meta.roomCode);
+        // Also run proximity for the revealed word — shows hints on morphological relatives
+        // (e.g. typing "de" reveals "de" but also hints "des", "du" via Levenshtein)
+        const artEmbRev = room.game.articleEmbeddings ?? new Map();
+        getProximityMap(result.normalized, artEmbRev).then((map) => {
+          if (Object.keys(map).length > 0) {
+            socket.emit('proximity-update', { map, guessWord: result.normalized });
+          }
+        }).catch(console.error);
         break;
       }
       case 'not-found': {
@@ -372,7 +380,7 @@ io.on('connection', (socket: Socket) => {
         const artEmb = room.game.articleEmbeddings ?? new Map();
         getProximityMap(result.normalized, artEmb).then((map) => {
           if (Object.keys(map).length > 0) {
-            socket.emit('proximity-update', { map });
+            socket.emit('proximity-update', { map, guessWord: result.normalized });
           }
         }).catch(console.error);
         break;

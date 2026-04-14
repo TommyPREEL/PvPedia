@@ -51,7 +51,6 @@ export default function App() {
   const [soundMuted, setSoundMuted] = useState(false);
 
   const notifId = useRef(0);
-  const lastMissWordRef = useRef<string>('');
 
   const notify = useCallback((message: string, type: Notif['type'] = 'info') => {
     const id = String(notifId.current++);
@@ -130,8 +129,6 @@ export default function App() {
     socket.on('chat-history', (history: ChatMessage[]) => setMessages(history));
 
     socket.on('word-revealed', (payload: WordRevealedPayload) => {
-      // Clear stale proximity ref so delayed proximity-updates don't map wrong hints
-      lastMissWordRef.current = '';
       if (payload.isWin) {
         notify(`🎉 ${payload.revealedByName} found: "${payload.articleTitle}"!`, 'success');
         setProximityMap({});
@@ -153,15 +150,14 @@ export default function App() {
 
     socket.on('word-feedback', (payload: { result: string; word: string }) => {
       if (payload.result === 'not-found') {
-        lastMissWordRef.current = payload.word;
         sounds.playNotFound();
       } else if (payload.result === 'already-known') {
         notify(t('alreadyGuessed', { word: payload.word }), 'info');
       }
     });
 
-    socket.on('proximity-update', (payload: { map: ProximityMap }) => {
-      const guessWord = lastMissWordRef.current;
+    socket.on('proximity-update', (payload: { map: ProximityMap; guessWord: string }) => {
+      const guessWord = payload.guessWord;
       setProximityMap((prev) => {
         const merged: ProximityMap = { ...prev };
         for (const [k, v] of Object.entries(payload.map)) {
@@ -185,7 +181,7 @@ export default function App() {
           }
           return next;
         });
-        // Retroactively mark this word as 'close' in the word list
+        // Retroactively mark this word as 'close' in the word list (only if it was a miss)
         if (hasCloseMatch) {
           setWordList((prev) =>
             prev.map((e) =>
