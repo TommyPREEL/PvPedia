@@ -79,3 +79,13 @@ export function proximityColor(score: number): string {
   const alpha = 0.45 + score * 0.45;              // 0.45–0.9
   return `hsla(${hue},${sat}%,${lit}%,${alpha})`;
 }
+
+/** Color for proximity placeholder text: vivid warm when close, grey when far */
+export function proximityTextColor(score: number): string {
+  // High score → bright amber/orange, low score → muted grey
+  const hue = 35; // warm amber
+  const sat = Math.round(score * 90);        // 0–90 %
+  const lit = Math.round(45 + score * 25);   // 45–70 %
+  const alpha = 0.3 + score * 0.55;          // 0.3–0.85
+  return `hsla(${hue},${sat}%,${lit}%,${alpha})`;
+}

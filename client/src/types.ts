@@ -87,9 +87,15 @@ export interface FloatingEmoji {
 
 export interface WordEntry {
   word: string;
-  /** 'found' = in article, 'miss' = not found, 'common' = too common */
-  status: 'found' | 'miss' | 'common';
+  /** 'found' = in article, 'miss' = not found, 'common' = too common, 'close' = proximity match */
+  status: 'found' | 'miss' | 'common' | 'close';
   timestamp: number;
+}
+
+/** Proximity word entry: tracks the guessed word and its score for an article word */
+export interface ProximityWordEntry {
+  word: string;
+  score: number;
 }
 
 /** Maps article's normalized words → proximity score 0–1 */

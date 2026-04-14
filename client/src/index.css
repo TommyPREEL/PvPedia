@@ -228,7 +228,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.22); /* fallback; overridden by inline style */
   font-size: 0.55em;
   overflow: hidden;
   pointer-events: none;

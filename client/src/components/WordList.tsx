@@ -10,16 +10,19 @@ const STATUS_ICON: Record<WordEntry['status'], string> = {
   found:  '✓',
   miss:   '✗',
   common: '≈',
+  close:  '~',
 };
 const STATUS_CLASS: Record<WordEntry['status'], string> = {
   found:  'text-emerald-300',
   miss:   'text-slate-500 line-through decoration-red-700/60',
   common: 'text-slate-500 italic',
+  close:  'text-amber-300/80',
 };
 const DOT_CLASS: Record<WordEntry['status'], string> = {
   found:  'bg-emerald-400',
   miss:   'bg-red-500',
   common: 'bg-amber-500/70',
+  close:  'bg-amber-400',
 };
 
 export default function WordList({ entries, expanded }: Props) {
@@ -27,6 +30,7 @@ export default function WordList({ entries, expanded }: Props) {
   const found  = entries.filter((e) => e.status === 'found').length;
   const missed = entries.filter((e) => e.status === 'miss').length;
   const common = entries.filter((e) => e.status === 'common').length;
+  const close  = entries.filter((e) => e.status === 'close').length;
 
   return (
     <div className={`flex flex-col ${expanded ? 'h-full' : ''}`}>
@@ -46,6 +50,7 @@ export default function WordList({ entries, expanded }: Props) {
           <div className="flex gap-2 mt-1 text-xs text-slate-600">
             <span className="text-emerald-500">{found}✓</span>
             <span className="text-red-500">{missed}✗</span>
+            {close > 0 && <span className="text-amber-400">{close}~</span>}
             {common > 0 && <span className="text-amber-500">{common}≈</span>}
           </div>
         )}
@@ -65,6 +70,7 @@ export default function WordList({ entries, expanded }: Props) {
                 </span>
                 <span className={`text-xs flex-shrink-0 opacity-70 ${
                   entry.status === 'found'  ? 'text-emerald-400' :
+                  entry.status === 'close'  ? 'text-amber-400' :
                   entry.status === 'miss'   ? 'text-red-500' :
                   'text-amber-500'
                 }`}>

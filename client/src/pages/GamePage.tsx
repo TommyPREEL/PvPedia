@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { socket } from '../socket';
-import { ClientRoom, ChatMessage, WordEntry, ProximityMap } from '../types';
+import { ClientRoom, ChatMessage, WordEntry, ProximityMap, ProximityWordEntry } from '../types';
 import ArticleDisplay from '../components/ArticleDisplay';
 import Chat from '../components/Chat';
 import Scoreboard from '../components/Scoreboard';
@@ -19,7 +19,7 @@ interface Props {
   wordList: WordEntry[];
   isLoading: boolean;
   proximityMap: ProximityMap;
-  proximityWordMap: Record<string, string>;
+  proximityWordMap: Record<string, ProximityWordEntry>;
   soundMuted: boolean;
   onToggleSound: () => void;
   onWordSubmit: (word: string, status: WordEntry['status']) => void;

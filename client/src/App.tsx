@@ -4,7 +4,7 @@ import {
 import { socket } from './socket';
 import {
   ClientRoom, ChatMessage, WordRevealedPayload, PlayerWonPayload,
-  EmojiPayload, FloatingEmoji, WordEntry, ProximityMap, StoredSession,
+  EmojiPayload, FloatingEmoji, WordEntry, ProximityMap, ProximityWordEntry, StoredSession,
 } from './types';
 import { UILang, TFn, createT } from './i18n';
 import { sounds } from './sounds';
@@ -47,7 +47,7 @@ export default function App() {
   const [wordList, setWordList] = useState<WordEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [proximityMap, setProximityMap] = useState<ProximityMap>({});
-  const [proximityWordMap, setProximityWordMap] = useState<Record<string, string>>({});
+  const [proximityWordMap, setProximityWordMap] = useState<Record<string, ProximityWordEntry>>({});
   const [soundMuted, setSoundMuted] = useState(false);
 
   const notifId = useRef(0);
@@ -171,13 +171,31 @@ export default function App() {
         return merged;
       });
       if (guessWord) {
+        let hasCloseMatch = false;
         setProximityWordMap((prev) => {
           const next = { ...prev };
           for (const [k, v] of Object.entries(payload.map)) {
-            if (v > 0.25) next[k] = guessWord;
+            if (v > 0.25) {
+              const existing = next[k];
+              // Only replace if this word is closer than what's already there
+              if (!existing || v > existing.score) {
+                next[k] = { word: guessWord, score: v };
+              }
+              hasCloseMatch = true;
+            }
           }
           return next;
         });
+        // Retroactively mark this word as 'close' in the word list
+        if (hasCloseMatch) {
+          setWordList((prev) =>
+            prev.map((e) =>
+              e.word.toLowerCase() === guessWord.toLowerCase() && e.status === 'miss'
+                ? { ...e, status: 'close' }
+                : e
+            )
+          );
+        }
       }
     });
 

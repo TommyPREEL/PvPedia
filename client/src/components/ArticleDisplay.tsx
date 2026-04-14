@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
-import { ClientToken, ProximityMap } from '../types';
-import { proximityColor } from '../sounds';
+import { ClientToken, ProximityMap, ProximityWordEntry } from '../types';
+import { proximityColor, proximityTextColor } from '../sounds';
 import { useI18n } from '../App';
 
 interface Props {
@@ -9,7 +9,7 @@ interface Props {
   articleTitle?: string;
   titleWordLengths: number[];
   proximityMap: ProximityMap;
-  proximityWordMap: Record<string, string>;
+  proximityWordMap: Record<string, ProximityWordEntry>;
   onHiddenWordClick: () => void;
 }
 
@@ -107,8 +107,8 @@ export default function ArticleDisplay({
         const hasProximity = score != null && score > 0.04;
         const bgColor = hasProximity ? proximityColor(score) : undefined;
 
-        const proximityWord = proximityWordMap[norm];
-        const showPlaceholder = !!proximityWord && token.length >= 4;
+        const proximityEntry = proximityWordMap[norm];
+        const showPlaceholder = !!proximityEntry && token.length >= 4;
 
         const isShowingHint = hint?.tokenIndex === i;
 
@@ -130,7 +130,12 @@ export default function ArticleDisplay({
             }}
           >
             {showPlaceholder && !isShowingHint && (
-              <span className="proximity-placeholder">{proximityWord}</span>
+              <span
+                className="proximity-placeholder"
+                style={{ color: proximityTextColor(proximityEntry.score) }}
+              >
+                {proximityEntry.word}
+              </span>
             )}
             {isShowingHint && (
               <span className="hint-tooltip">
