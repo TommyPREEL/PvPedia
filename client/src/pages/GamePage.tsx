@@ -52,7 +52,7 @@ function ConfirmDialog({ titleKey, bodyKey, actions, onClose }: DialogProps) {
           {actions.map((a, i) => (
             <button
               key={i}
-              onClick={() => { a.onClick(); onClose(); }}
+              onClick={() => { onClose(); a.onClick(); }}
               className={`w-full py-2 px-4 rounded-lg text-sm font-medium transition-colors
                 ${a.variant === 'danger'    ? 'bg-red-700 hover:bg-red-600 text-white' :
                   a.variant === 'primary'   ? 'bg-indigo-600 hover:bg-indigo-500 text-white' :
