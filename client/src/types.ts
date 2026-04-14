@@ -41,6 +41,7 @@ export interface ClientRoom {
   leaderId: string;
   players: ClientPlayer[];
   language: Language;
+  gameMode: 'competitive' | 'coop';
   game: ClientGameState;
 }
 

@@ -105,6 +105,26 @@ export default function WaitingRoomPage({ room, playerId, messages, isLoading, s
                       </button>
                     </div>
                   </div>
+                  <div>
+                    <p className="text-xs text-slate-500 mb-2">{t('gameMode')}</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => socket.emit('set-game-mode', 'competitive')}
+                        className={`flex-1 btn text-sm py-1.5 ${room.gameMode === 'competitive' ? 'btn-primary' : 'btn-secondary'}`}
+                        title={t('compModeDesc')}>
+                        {t('competitiveMode')}
+                      </button>
+                      <button
+                        onClick={() => socket.emit('set-game-mode', 'coop')}
+                        className={`flex-1 btn text-sm py-1.5 ${room.gameMode === 'coop' ? 'btn-primary' : 'btn-secondary'}`}
+                        title={t('coopModeDesc')}>
+                        {t('coopMode')}
+                      </button>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1.5">
+                      {room.gameMode === 'competitive' ? t('compModeDesc') : t('coopModeDesc')}
+                    </p>
+                  </div>
                   <button
                     onClick={() => { setStartError(''); socket.emit('start-game', (r: { error?: string }) => { if (r?.error) setStartError(r.error); }); }}
                     disabled={!allReady || isLoading}

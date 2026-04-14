@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import {
-  Room, Player, Language, ClientRoom, ClientToken, ClientGameState,
+  Room, Player, Language, GameMode, ClientRoom, ClientToken, ClientGameState,
   ChatMessage, GameState, Token, SessionData,
 } from './types';
 import { normalizeWord } from './wikipedia';
@@ -83,13 +83,13 @@ export function cancelGrace(token: string) {
 }
 
 // ---- Serialization ----
-function serializeTokens(game: GameState): ClientToken[] {
+function serializeTokensFromSet(game: GameState, revealedSet: Set<string>): ClientToken[] {
   return game.tokens.map((token) => {
     if (token.type === 'other') {
       return { type: 'other', value: token.value, length: token.value.length, revealed: true };
     }
     const norm = token.normalized ?? '';
-    const revealed = game.revealedWords.has(norm);
+    const revealed = revealedSet.has(norm);
     return {
       type: 'word',
       value: revealed ? token.value : '',
@@ -100,12 +100,23 @@ function serializeTokens(game: GameState): ClientToken[] {
   });
 }
 
-export function serializeRoom(room: Room): ClientRoom {
+function getEffectiveRevealedSet(room: Room, playerId?: string): Set<string> {
+  if (room.gameMode === 'competitive' && room.game.status === 'playing' && playerId) {
+    const personal = room.game.playerRevealedWords.get(playerId) ?? new Set<string>();
+    const effective = new Set(room.game.revealedWords);
+    for (const w of personal) effective.add(w);
+    return effective;
+  }
+  return room.game.revealedWords;
+}
+
+export function serializeRoom(room: Room, playerId?: string): ClientRoom {
   const finished = room.game.status === 'finished';
+  const revealedSet = getEffectiveRevealedSet(room, playerId);
   const clientGame: ClientGameState = {
     status: room.game.status,
-    tokens: room.game.status !== 'waiting' ? serializeTokens(room.game) : [],
-    revealedWords: Array.from(room.game.revealedWords),
+    tokens: room.game.status !== 'waiting' ? serializeTokensFromSet(room.game, revealedSet) : [],
+    revealedWords: Array.from(revealedSet),
     startTime: room.game.startTime,
     winnerId: room.game.winnerId,
     winnerOrder: room.game.winnerOrder,
@@ -119,6 +130,7 @@ export function serializeRoom(room: Room): ClientRoom {
     leaderId: room.leaderId,
     players: Array.from(room.players.values()).map((p) => ({ ...p })),
     language: room.language,
+    gameMode: room.gameMode,
     game: clientGame,
   };
 }
@@ -134,9 +146,10 @@ export function createRoom(playerName: string, playerId: string): Room {
     code, leaderId: playerId,
     players: new Map([[playerId, leader]]),
     language: 'en',
+    gameMode: 'coop',
     game: {
       status: 'waiting', articleTitle: '', targetNormalized: '',
-      tokens: [], revealedWords: new Set(), winnerOrder: [],
+      tokens: [], revealedWords: new Set(), playerRevealedWords: new Map(), winnerOrder: [],
     },
     chatHistory: [],
   };
@@ -218,12 +231,18 @@ export function startGame(code: string, tokens: Token[], articleTitle: string): 
   const room = rooms.get(code);
   if (!room) return null;
 
+  const playerRevealedWords = new Map<string, Set<string>>();
+  for (const pid of room.players.keys()) {
+    playerRevealedWords.set(pid, new Set());
+  }
+
   room.game = {
     status: 'playing',
     articleTitle,
     targetNormalized: normalizeWord(articleTitle.split(/\s+/)[0]),
     tokens,
     revealedWords: new Set(),
+    playerRevealedWords,
     startTime: Date.now(),
     winnerOrder: [],
   };
@@ -271,6 +290,10 @@ export function submitWord(code: string, playerId: string, word: string): Submit
     if (rank === 1) {
       game.status = 'finished';
       game.winnerId = playerId;
+      // Merge all personal sets into shared so finished view shows everyone's progress
+      for (const personalSet of game.playerRevealedWords.values()) {
+        for (const w of personalSet) game.revealedWords.add(w);
+      }
       if (room.timerInterval) { clearInterval(room.timerInterval); room.timerInterval = undefined; }
     }
     return { result: 'win', normalized, articleTitle: game.articleTitle, rank };
@@ -285,11 +308,29 @@ export function submitWord(code: string, playerId: string, word: string): Submit
   const exists = game.tokens.some((t) => t.type === 'word' && t.normalized === normalized);
   if (!exists) return { result: 'not-found', normalized };
 
-  if (game.revealedWords.has(normalized)) return { result: 'already-known', normalized };
+  if (room.gameMode === 'competitive') {
+    const personalSet = game.playerRevealedWords.get(playerId) ?? new Set<string>();
+    if (personalSet.has(normalized) || game.revealedWords.has(normalized)) {
+      return { result: 'already-known', normalized };
+    }
+    personalSet.add(normalized);
+    game.playerRevealedWords.set(playerId, personalSet);
+    player.score.wordsRevealedFirst++;
+    return { result: 'revealed', normalized };
+  } else {
+    if (game.revealedWords.has(normalized)) return { result: 'already-known', normalized };
+    game.revealedWords.add(normalized);
+    player.score.wordsRevealedFirst++;
+    return { result: 'revealed', normalized };
+  }
+}
 
-  game.revealedWords.add(normalized);
-  player.score.wordsRevealedFirst++;
-  return { result: 'revealed', normalized };
+export function setGameMode(code: string, playerId: string, mode: GameMode): Room | null {
+  const room = rooms.get(code);
+  if (!room || room.leaderId !== playerId) return null;
+  if (room.game.status !== 'waiting') return null;
+  room.gameMode = mode;
+  return room;
 }
 
 /** Build the set of all unique normalized words in the article (for proximity queries). */

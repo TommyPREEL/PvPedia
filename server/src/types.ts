@@ -1,5 +1,6 @@
 export type Language = 'en' | 'fr';
 export type GameStatus = 'waiting' | 'playing' | 'finished';
+export type GameMode = 'competitive' | 'coop';
 
 export interface PlayerScore {
   wordsSubmitted: number;
@@ -29,6 +30,8 @@ export interface GameState {
   targetNormalized: string;
   tokens: Token[];
   revealedWords: Set<string>;
+  /** Per-player revealed words for competitive mode */
+  playerRevealedWords: Map<string, Set<string>>;
   startTime?: number;
   winnerId?: string;
   winnerOrder: string[];
@@ -39,6 +42,7 @@ export interface Room {
   leaderId: string;
   players: Map<string, Player>;
   language: Language;
+  gameMode: GameMode;
   game: GameState;
   chatHistory: ChatMessage[];
   timerInterval?: ReturnType<typeof setInterval>;
@@ -96,6 +100,7 @@ export interface ClientRoom {
   leaderId: string;
   players: ClientPlayer[];
   language: Language;
+  gameMode: GameMode;
   game: ClientGameState;
 }
 

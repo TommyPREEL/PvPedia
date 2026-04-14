@@ -128,6 +128,8 @@ export default function App() {
     socket.on('chat-history', (history: ChatMessage[]) => setMessages(history));
 
     socket.on('word-revealed', (payload: WordRevealedPayload) => {
+      // Clear stale proximity ref so delayed proximity-updates don't map wrong hints
+      lastMissWordRef.current = '';
       if (payload.isWin) {
         notify(`🎉 ${payload.revealedByName} found: "${payload.articleTitle}"!`, 'success');
         setProximityMap({});
@@ -135,10 +137,11 @@ export default function App() {
       } else {
         // Leader hint reveal — add the word to everyone's word list
         trackWord(payload.normalized, 'found');
-        notify(`💡 "${payload.normalized}" revealed by ${payload.revealedByName}`, 'info');
         if (payload.revealedBy === playerIdRef.current) {
+          notify(`✅ "${payload.normalized}" revealed!`, 'info');
           sounds.playRevealed();
         } else {
+          notify(`💡 "${payload.normalized}" revealed by ${payload.revealedByName}`, 'info');
           sounds.playOtherRevealed();
         }
       }

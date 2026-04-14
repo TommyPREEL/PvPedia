@@ -103,55 +103,59 @@ export async function getProximityMap(
   language: Language,
   articleWords: Set<string>
 ): Promise<{ [normalized: string]: number }> {
-  const enc = encodeURIComponent;
-  const langParam = language === 'fr' ? '&v=fr' : '';
+  try {
+    const enc = encodeURIComponent;
+    const langParam = language === 'fr' ? '&v=fr' : '';
 
-  // ── Hop 1: ml + rel_syn + rel_trg in parallel ──────────────────────────
-  const hop1Urls = [
-    `https://api.datamuse.com/words?ml=${enc(word)}&max=60${langParam}`,
-    `https://api.datamuse.com/words?rel_syn=${enc(word)}&max=30`,
-    `https://api.datamuse.com/words?rel_trg=${enc(word)}&max=30`,
-  ];
-  const hop1Weights = [1.0, 0.9, 0.85];
+    // ── Hop 1: ml + rel_syn + rel_trg in parallel ────────────────────────
+    const hop1Urls = [
+      `https://api.datamuse.com/words?ml=${enc(word)}&max=60${langParam}`,
+      `https://api.datamuse.com/words?rel_syn=${enc(word)}&max=30`,
+      `https://api.datamuse.com/words?rel_trg=${enc(word)}&max=30`,
+    ];
+    const hop1Weights = [1.0, 0.9, 0.85];
 
-  const hop1Results = await Promise.allSettled(
-    hop1Urls.map((url) => axios.get<DatamuseWord[]>(url, { timeout: 3500 }))
-  );
-
-  const result: { [norm: string]: number } = {};
-  const hop1Data: DatamuseWord[][] = [];
-
-  for (let i = 0; i < hop1Results.length; i++) {
-    const r = hop1Results[i];
-    const data = r.status === 'fulfilled' ? (r.value.data ?? []) : [];
-    hop1Data.push(data);
-    mergeProximity(result, data, hop1Weights[i], articleWords);
-  }
-
-  // ── Hop 2: top 5 related words not in article → ml queries ─────────────
-  const allHop1 = hop1Data.flat();
-  const selfNorm = normalizeWord(word);
-  const topSeeds = allHop1
-    .map((item) => ({ norm: normalizeWord(item.word), raw: item.word, score: item.score }))
-    .filter(({ norm }) => norm.length > 2 && !articleWords.has(norm) && norm !== selfNorm)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 5)
-    .map(({ raw }) => raw);
-
-  if (topSeeds.length) {
-    const hop2Results = await Promise.allSettled(
-      topSeeds.map((w) =>
-        axios.get<DatamuseWord[]>(
-          `https://api.datamuse.com/words?ml=${enc(w)}&max=30${langParam}`,
-          { timeout: 3000 }
-        )
-      )
+    const hop1Results = await Promise.allSettled(
+      hop1Urls.map((url) => axios.get<DatamuseWord[]>(url, { timeout: 3500 }))
     );
-    for (const r of hop2Results) {
-      const data = r.status === 'fulfilled' ? (r.value.data ?? []) : [];
-      mergeProximity(result, data, 0.5, articleWords); // 2nd-hop: half weight
-    }
-  }
 
-  return result;
+    const result: { [norm: string]: number } = {};
+    const hop1Data: DatamuseWord[][] = [];
+
+    for (let i = 0; i < hop1Results.length; i++) {
+      const r = hop1Results[i];
+      const data = r.status === 'fulfilled' ? (r.value.data ?? []) : [];
+      hop1Data.push(data);
+      mergeProximity(result, data, hop1Weights[i], articleWords);
+    }
+
+    // ── Hop 2: top 5 related words not in article → ml queries ───────────
+    const allHop1 = hop1Data.flat();
+    const selfNorm = normalizeWord(word);
+    const topSeeds = allHop1
+      .map((item) => ({ norm: normalizeWord(item.word), raw: item.word, score: item.score }))
+      .filter(({ norm }) => norm.length > 2 && !articleWords.has(norm) && norm !== selfNorm)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5)
+      .map(({ raw }) => raw);
+
+    if (topSeeds.length) {
+      const hop2Results = await Promise.allSettled(
+        topSeeds.map((w) =>
+          axios.get<DatamuseWord[]>(
+            `https://api.datamuse.com/words?ml=${enc(w)}&max=30${langParam}`,
+            { timeout: 3000 }
+          )
+        )
+      );
+      for (const r of hop2Results) {
+        const data = r.status === 'fulfilled' ? (r.value.data ?? []) : [];
+        mergeProximity(result, data, 0.5, articleWords);
+      }
+    }
+
+    return result;
+  } catch {
+    return {};
+  }
 }

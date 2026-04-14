@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { ClientToken, ProximityMap } from '../types';
 import { proximityColor } from '../sounds';
+import { useI18n } from '../App';
 
 interface Props {
   tokens: ClientToken[];
@@ -21,6 +22,7 @@ interface HintState { text: string; tokenIndex: number }
 export default function ArticleDisplay({
   tokens, revealedWords, articleTitle, titleWordLengths, proximityMap, proximityWordMap, onHiddenWordClick,
 }: Props) {
+  const { t } = useI18n();
   const revealedSet = new Set(revealedWords);
   const [hint, setHint] = useState<HintState | null>(null);
   const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -60,20 +62,24 @@ export default function ArticleDisplay({
     <div className="article-text text-[0.95rem] leading-loose text-slate-200 select-text">
       {showTitle && (
         <div className="title-display">
-          <p className="text-xs text-slate-500 uppercase tracking-widest mb-3 text-center">Find the article</p>
+          <p className="text-xs text-slate-500 uppercase tracking-widest mb-3 text-center">{t('findTheArticle')}</p>
           <div className="flex flex-wrap justify-center gap-x-3 gap-y-2 items-center mb-8">
             {articleTitle
               ? /* Game finished — show actual words */
                 titleWords.map((word, wi) => (
                   <span key={wi} className="title-word-revealed-block">{word}</span>
                 ))
-              : /* Game in progress — show blank boxes sized by word length */
+              : /* Game in progress — show blank boxes with letter count */
                 titleWordLengths.map((len, wi) => (
                   <span
                     key={wi}
-                    className="title-word-hidden-block"
+                    className="title-word-hidden-block relative group"
                     style={{ width: `${Math.max(len * 1.1, 2)}ch` }}
-                  />
+                  >
+                    <span className="absolute inset-0 flex items-center justify-center text-slate-500 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                      {len}
+                    </span>
+                  </span>
                 ))
             }
           </div>
@@ -102,7 +108,7 @@ export default function ArticleDisplay({
         const bgColor = hasProximity ? proximityColor(score) : undefined;
 
         const proximityWord = proximityWordMap[norm];
-        const showPlaceholder = !!proximityWord && score != null && score > 0.25 && token.length >= 4;
+        const showPlaceholder = !!proximityWord;
 
         const isShowingHint = hint?.tokenIndex === i;
 

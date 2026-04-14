@@ -57,27 +57,14 @@ export default function GamePage({
 
   const focusInput = () => inputRef.current?.focus();
 
-  const [revealOpen, setRevealOpen] = useState(false);
-  const [revealInput, setRevealInput] = useState('');
-  const [revealError, setRevealError] = useState('');
-
   const handleNewGame = () => socket.emit('new-game', (r: { error?: string }) => { if (r?.error) alert(r.error); });
   const handleQuickRestart = () => socket.emit('quick-restart', (r: { error?: string }) => { if (r?.error) alert(r.error); });
   const handleLeave = () => { if (confirm('Leave the room?')) onLeave(); };
 
-  const handleReveal = (e: React.FormEvent) => {
-    e.preventDefault();
-    const word = revealInput.trim();
-    if (!word) return;
-    socket.emit('reveal-word', word, (res: { error?: string }) => {
-      if (res?.error) {
-        setRevealError(res.error);
-        setTimeout(() => setRevealError(''), 2500);
-      } else {
-        setRevealOpen(false);
-        setRevealInput('');
-        setRevealError('');
-      }
+  const handleRevealAll = () => {
+    if (!confirm('Reveal the entire article for everyone?')) return;
+    socket.emit('reveal-all-words', (res: { error?: string }) => {
+      if (res?.error) alert(res.error);
     });
   };
 
@@ -132,50 +119,29 @@ export default function GamePage({
             {room.language === 'en' ? '🇬🇧' : '🇫🇷'}
           </span>
 
-          {/* UI lang pill */}
-          <div className="lang-pill hidden tablet:flex">
-            <button className={uiLang === 'en' ? 'active' : 'inactive'} onClick={() => setUILang('en')}>EN</button>
-            <button className={uiLang === 'fr' ? 'active' : 'inactive'} onClick={() => setUILang('fr')}>FR</button>
-          </div>
+          {/* Game mode badge */}
+          <span className={`text-xs px-2 py-1 rounded-full border hidden xs:inline-flex
+            ${ room.gameMode === 'competitive'
+              ? 'bg-red-900/30 border-red-700/40 text-red-300'
+              : 'bg-emerald-900/30 border-emerald-700/40 text-emerald-300'
+            }`}>
+            {room.gameMode === 'competitive' ? t('competitiveMode') : t('coopMode')}
+          </span>
 
           {/* Sound toggle */}
           <button onClick={onToggleSound} className="btn-ghost text-base px-1.5 py-1" title={soundMuted ? 'Unmute' : 'Mute'}>
             {soundMuted ? '🔇' : '🔊'}
           </button>
 
-          {/* Reveal word — leader, game in progress */}
+          {/* Reveal all — leader, game in progress */}
           {isLeader && !gameFinished && !isLoading && (
-            revealOpen ? (
-              <form onSubmit={handleReveal} className="flex items-center gap-1">
-                <div className="flex flex-col items-start">
-                  <input
-                    autoFocus
-                    value={revealInput}
-                    onChange={(e) => { setRevealInput(e.target.value); setRevealError(''); }}
-                    placeholder={t('revealWordPlaceholder')}
-                    className="bg-slate-800 border border-amber-500/60 text-white text-xs rounded px-2 py-1 w-32
-                               focus:outline-none focus:border-amber-400 placeholder-slate-500"
-                  />
-                  {revealError && (
-                    <span className="text-red-400 text-[10px] mt-0.5 absolute translate-y-6">{revealError}</span>
-                  )}
-                </div>
-                <button type="submit" className="btn-secondary text-xs py-1 px-2 border-amber-500/60 hover:border-amber-400"
-                        title={t('revealWordConfirm')}>
-                  💡
-                </button>
-                <button type="button" onClick={() => { setRevealOpen(false); setRevealInput(''); setRevealError(''); }}
-                        className="btn-ghost text-xs py-1 px-1 text-slate-400" title={t('revealWordCancel')}>
-                  ✕
-                </button>
-              </form>
-            ) : (
-              <button onClick={() => setRevealOpen(true)}
-                      className="btn-secondary text-xs py-1.5 px-2.5 border-amber-500/40 hover:border-amber-400 text-amber-300"
-                      title={t('revealWord')}>
-                {t('revealWordHint')}
-              </button>
-            )
+            <button
+              onClick={handleRevealAll}
+              className="btn-secondary text-xs py-1.5 px-2.5 border-amber-500/40 hover:border-amber-400 text-amber-300"
+              title={t('revealWord')}
+            >
+              {t('revealWordHint')}
+            </button>
           )}
 
           {/* Quick restart — leader, any time */}
@@ -222,7 +188,7 @@ export default function GamePage({
 
         {/* Left sidebar: word list (laptop+ only) */}
         {isLaptop && (
-          <aside className="w-52 flex-shrink-0 flex flex-col border-r border-slate-700/50 overflow-hidden">
+          <aside className="w-52 flex-shrink-0 flex flex-col border-r border-slate-700/50 overflow-hidden h-full">
             <WordList entries={wordList} />
           </aside>
         )}

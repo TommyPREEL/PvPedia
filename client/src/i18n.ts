@@ -83,6 +83,14 @@ const T = {
     // Letter hint
     letters: '{{n}} letter',
     lettersPlural: '{{n}} letters',
+    // Game mode
+    gameMode: 'Game mode',
+    competitiveMode: '⚔️ Competitive',
+    coopMode: '🤝 Cooperative',
+    compModeDesc: 'Words revealed only for you',
+    coopModeDesc: 'Words revealed for everyone',
+    // Article display
+    findTheArticle: 'Find the article',
     // Sounds
     soundOn: '🔊',
     soundOff: '🔇',
@@ -157,6 +165,13 @@ const T = {
     alreadyGuessed: '"{{word}}" déjà essayé',
     letters: '{{n}} lettre',
     lettersPlural: '{{n}} lettres',
+    // Game mode
+    gameMode: 'Mode de jeu',
+    competitiveMode: '⚔️ Compétitif',
+    coopMode: '🤝 Coopératif',
+    compModeDesc: 'Mots révélés uniquement pour toi',
+    coopModeDesc: 'Mots révélés pour tout le monde',
+    findTheArticle: 'Trouve l\'article',
     soundOn: '🔊',
     soundOff: '🔇',
   },

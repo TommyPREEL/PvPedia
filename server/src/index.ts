@@ -4,11 +4,11 @@ import { Server, Socket } from 'socket.io';
 import cors from 'cors';
 import { v4 as uuidv4 } from 'uuid';
 import {
-  createRoom, getRoom, joinRoom, removePlayer, setPlayerReady, setLanguage,
+  createRoom, getRoom, joinRoom, removePlayer, setPlayerReady, setLanguage, setGameMode,
   addChatMessage, submitWord, startGame, serializeRoom, issueSession,
   getSession, deleteSession, startDisconnectGrace, cancelGrace, getArticleWordSet,
 } from './roomManager';
-import { fetchRandomArticle, tokenizeText, getProximityMap, normalizeWord } from './wikipedia';
+import { fetchRandomArticle, tokenizeText, getProximityMap } from './wikipedia';
 import { Language } from './types';
 
 const app = express();
@@ -27,7 +27,15 @@ const socketToRoom = new Map<string, { roomCode: string; playerId: string }>();
 function broadcastRoom(roomCode: string) {
   const room = getRoom(roomCode);
   if (!room) return;
-  io.to(roomCode).emit('room-updated', serializeRoom(room));
+  if (room.gameMode === 'competitive' && room.game.status === 'playing') {
+    // Send each player their personalized view
+    for (const [socketId, meta] of socketToRoom) {
+      if (meta.roomCode !== roomCode) continue;
+      io.to(socketId).emit('room-updated', serializeRoom(room, meta.playerId));
+    }
+  } else {
+    io.to(roomCode).emit('room-updated', serializeRoom(room));
+  }
 }
 
 function systemMessage(roomCode: string, message: string) {
@@ -62,7 +70,7 @@ io.on('connection', (socket: Socket) => {
 
     systemMessage(session.roomCode, `${session.playerName} reconnected`);
     broadcastRoom(session.roomCode);
-    cb({ success: true, playerId: session.playerId, room: serializeRoom(room) });
+    cb({ success: true, playerId: session.playerId, room: serializeRoom(room, session.playerId) });
     socket.emit('chat-history', room.chatHistory);
   });
 
@@ -129,6 +137,15 @@ io.on('connection', (socket: Socket) => {
       systemMessage(meta.roomCode, `Language changed to ${language === 'en' ? 'English' : 'French'}`);
       broadcastRoom(meta.roomCode);
     }
+  });
+
+  // ── CHANGE GAME MODE ─────────────────────────────────────────────────────────
+  socket.on('set-game-mode', (mode: 'competitive' | 'coop') => {
+    const meta = socketToRoom.get(socket.id);
+    if (!meta) return;
+    if (mode !== 'competitive' && mode !== 'coop') return;
+    const room = setGameMode(meta.roomCode, meta.playerId, mode);
+    if (room) broadcastRoom(meta.roomCode);
   });
 
   // ── START GAME ───────────────────────────────────────────────────────────────
@@ -220,8 +237,8 @@ io.on('connection', (socket: Socket) => {
     }
   });
 
-  // ── REVEAL WORD (leader hint) ──────────────────────────────────────────────
-  socket.on('reveal-word', (word: string, cb?: (res: { error?: string }) => void) => {
+  // ── REVEAL ALL WORDS (leader, reveals entire article for everyone) ──────────
+  socket.on('reveal-all-words', (cb?: (res: { error?: string }) => void) => {
     const meta = socketToRoom.get(socket.id);
     if (!meta) return cb?.({ error: 'Not in a room' });
 
@@ -230,22 +247,14 @@ io.on('connection', (socket: Socket) => {
     if (room.leaderId !== meta.playerId) return cb?.({ error: 'Not the leader' });
     if (room.game.status !== 'playing') return cb?.({ error: 'Game not running' });
 
-    const normalized = normalizeWord(word.trim());
-    if (!normalized) return cb?.({ error: 'Invalid word' });
-    if (room.game.revealedWords.has(normalized)) return cb?.({ error: 'Already revealed' });
+    // Add every article word to revealedWords
+    for (const t of room.game.tokens) {
+      if (t.type === 'word' && t.normalized) {
+        room.game.revealedWords.add(t.normalized);
+      }
+    }
 
-    const exists = room.game.tokens.some((t) => t.type === 'word' && t.normalized === normalized);
-    if (!exists) return cb?.({ error: 'Word not in article' });
-
-    room.game.revealedWords.add(normalized);
-    io.to(meta.roomCode).emit('word-revealed', {
-      normalized,
-      revealedBy: meta.playerId,
-      revealedByName: '👑 Leader',
-      isWin: false,
-      totalRevealed: room.game.revealedWords.size,
-    });
-    systemMessage(meta.roomCode, `💡 Leader revealed a word hint`);
+    systemMessage(meta.roomCode, `💡 Leader revealed the entire article!`);
     broadcastRoom(meta.roomCode);
     cb?.({});
   });
@@ -290,13 +299,24 @@ io.on('connection', (socket: Socket) => {
         break;
       }
       case 'revealed': {
-        io.to(meta.roomCode).emit('word-revealed', {
-          normalized: result.normalized,
-          revealedBy: meta.playerId,
-          revealedByName: player.name,
-          isWin: false,
-          totalRevealed: room.game.revealedWords.size,
-        });
+        if (room.gameMode === 'competitive') {
+          // Only the guesser gets the event — others see the change via broadcastRoom
+          socket.emit('word-revealed', {
+            normalized: result.normalized,
+            revealedBy: meta.playerId,
+            revealedByName: player.name,
+            isWin: false,
+            totalRevealed: 0,
+          });
+        } else {
+          io.to(meta.roomCode).emit('word-revealed', {
+            normalized: result.normalized,
+            revealedBy: meta.playerId,
+            revealedByName: player.name,
+            isWin: false,
+            totalRevealed: room.game.revealedWords.size,
+          });
+        }
         broadcastRoom(meta.roomCode);
         break;
       }
