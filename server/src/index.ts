@@ -332,7 +332,7 @@ io.on('connection', (socket: Socket) => {
 // ---- HTTP ----
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
-const PORT = process.env.PORT ?? 3800;
+const PORT = process.env.PORT ?? 3850;
 httpServer.listen(PORT, () => {
   console.log(`Pedantix Competitive server on port ${PORT}`);
 });

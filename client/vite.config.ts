@@ -7,7 +7,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/socket.io': {
-        target: 'http://localhost:3800',
+        target: 'http://localhost:3850',
         ws: true,
         changeOrigin: true,
       },

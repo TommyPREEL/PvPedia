@@ -8,7 +8,7 @@ A competitive multiplayer Pedantix clone — find the Wikipedia article title fi
 # Install both server & client
 npm run install:all
 
-# Terminal 1 — server (port 3800)
+# Terminal 1 — server (port 3850)
 npm run dev:server
 
 # Terminal 2 — client (port 5173)
@@ -50,7 +50,7 @@ Open [http://localhost:5173](http://localhost:5173).
 
 ```
 server/
-  src/index.ts          Socket.io handlers, port 3800
+  src/index.ts          Socket.io handlers, port 3850
   src/roomManager.ts    In-memory rooms, sessions, grace disconnect
   src/wikipedia.ts      Wikipedia REST API, tokenizer, Datamuse proximity
   src/stopwords.ts      EN/FR stopword lists

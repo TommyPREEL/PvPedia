@@ -18,8 +18,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set lowercase repo name
-        run: echo "REPO_LOWER=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+      - name: Set lowercase owner name
+        run: echo "OWNER_LOWER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -36,7 +36,7 @@ jobs:
         with:
           context: ./server
           push: true
-          tags: ghcr.io/${{ env.REPO_LOWER }}/server:latest
+          tags: ghcr.io/${{ env.OWNER_LOWER }}/pvpedia-server:latest
           cache-from: type=gha,scope=server
           cache-to: type=gha,scope=server,mode=max
 
@@ -45,7 +45,7 @@ jobs:
         with:
           context: ./client
           push: true
-          tags: ghcr.io/${{ env.REPO_LOWER }}/client:latest
+          tags: ghcr.io/${{ env.OWNER_LOWER }}/pvpedia-client:latest
           cache-from: type=gha,scope=client
           cache-to: type=gha,scope=client,mode=max
 
@@ -87,6 +87,6 @@ jobs:
         env:
           GHCR_ACTOR: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SERVER_IMAGE: ghcr.io/${{ env.REPO_LOWER }}/server:latest
-          CLIENT_IMAGE: ghcr.io/${{ env.REPO_LOWER }}/client:latest
+          SERVER_IMAGE: ghcr.io/${{ env.OWNER_LOWER }}/pvpedia-server:latest
+          CLIENT_IMAGE: ghcr.io/${{ env.OWNER_LOWER }}/pvpedia-client:latest
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}

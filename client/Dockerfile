@@ -2,10 +2,6 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# VITE_SERVER_URL is baked in at build time (pass via --build-arg)
-ARG VITE_SERVER_URL
-ENV VITE_SERVER_URL=$VITE_SERVER_URL
-
 COPY package.json ./
 RUN npm install
 
