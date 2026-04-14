@@ -74,88 +74,79 @@ export async function fetchRandomArticle(language: Language): Promise<WikiSummar
   throw new Error(`Could not fetch a suitable ${language} Wikipedia article`);
 }
 
-/**
- * Query Datamuse for words semantically close to `word`,
- * then return a score map for words that appear in the article.
- * Scores are normalized to 0–1 (1 = most similar).
- */
-type DatamuseWord = { word: string; score: number };
+// ---- Xenova Embedding Engine ----
 
-function mergeProximity(
-  result: { [norm: string]: number },
-  items: DatamuseWord[],
-  weight: number,
-  articleWords: Set<string>
-) {
-  if (!items.length) return;
-  const maxScore = items[0].score || 1;
-  for (const item of items) {
-    const norm = normalizeWord(item.word);
-    if (norm.length > 1 && articleWords.has(norm)) {
-      const score = (item.score / maxScore) * weight;
-      if (score > (result[norm] ?? 0)) result[norm] = score;
-    }
-  }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _embedder: any = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _embedderPromise: Promise<any> | null = null;
+
+/**
+ * Load the multilingual sentence-embedding model once and cache it.
+ * Safe to call multiple times — subsequent calls return the cached instance.
+ */
+export async function initEmbedder(): Promise<void> {
+  if (_embedder) return;
+  if (_embedderPromise) { await _embedderPromise; return; }
+  _embedderPromise = (async () => {
+    // Dynamic import works in both ESM and CJS thanks to @xenova/transformers v2 CJS build
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { pipeline } = await import('@xenova/transformers') as any;
+    _embedder = await pipeline(
+      'feature-extraction',
+      'Xenova/paraphrase-multilingual-MiniLM-L12-v2',
+      { quantized: true },  // ~40 MB INT8 model, supports EN + FR
+    );
+    console.log('[Embedder] paraphrase-multilingual-MiniLM-L12-v2 ready');
+  })();
+  await _embedderPromise;
 }
 
-export async function getProximityMap(
-  word: string,
-  language: Language,
-  articleWords: Set<string>
-): Promise<{ [normalized: string]: number }> {
-  try {
-    const enc = encodeURIComponent;
-    const langParam = language === 'fr' ? '&v=fr' : '';
+/** Dot product of two Float32Arrays (cosine similarity when both are L2-normalised). */
+function dot(a: Float32Array, b: Float32Array): number {
+  let s = 0;
+  for (let i = 0; i < a.length; i++) s += a[i] * b[i];
+  return s;
+}
 
-    // ── Hop 1: ml + rel_syn + rel_trg in parallel ────────────────────────
-    const hop1Urls = [
-      `https://api.datamuse.com/words?ml=${enc(word)}&max=60${langParam}`,
-      `https://api.datamuse.com/words?rel_syn=${enc(word)}&max=30`,
-      `https://api.datamuse.com/words?rel_trg=${enc(word)}&max=30`,
-    ];
-    const hop1Weights = [1.0, 0.9, 0.85];
-
-    const hop1Results = await Promise.allSettled(
-      hop1Urls.map((url) => axios.get<DatamuseWord[]>(url, { timeout: 3500 }))
-    );
-
-    const result: { [norm: string]: number } = {};
-    const hop1Data: DatamuseWord[][] = [];
-
-    for (let i = 0; i < hop1Results.length; i++) {
-      const r = hop1Results[i];
-      const data = r.status === 'fulfilled' ? (r.value.data ?? []) : [];
-      hop1Data.push(data);
-      mergeProximity(result, data, hop1Weights[i], articleWords);
-    }
-
-    // ── Hop 2: top 5 related words not in article → ml queries ───────────
-    const allHop1 = hop1Data.flat();
-    const selfNorm = normalizeWord(word);
-    const topSeeds = allHop1
-      .map((item) => ({ norm: normalizeWord(item.word), raw: item.word, score: item.score }))
-      .filter(({ norm }) => norm.length > 2 && !articleWords.has(norm) && norm !== selfNorm)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 5)
-      .map(({ raw }) => raw);
-
-    if (topSeeds.length) {
-      const hop2Results = await Promise.allSettled(
-        topSeeds.map((w) =>
-          axios.get<DatamuseWord[]>(
-            `https://api.datamuse.com/words?ml=${enc(w)}&max=30${langParam}`,
-            { timeout: 3000 }
-          )
-        )
-      );
-      for (const r of hop2Results) {
-        const data = r.status === 'fulfilled' ? (r.value.data ?? []) : [];
-        mergeProximity(result, data, 0.5, articleWords);
-      }
-    }
-
-    return result;
-  } catch {
-    return {};
+/**
+ * Embed every article word in a single batched inference call.
+ * Returns a Map of normalized word → L2-normalised embedding vector.
+ * Call once per game start and cache the result in room.game.articleEmbeddings.
+ */
+export async function buildArticleEmbeddings(
+  words: string[],
+): Promise<Map<string, Float32Array>> {
+  const filtered = words.filter((w) => w.length >= 2);
+  if (!filtered.length) return new Map();
+  await initEmbedder();
+  const output = await _embedder(filtered, { pooling: 'mean', normalize: true });
+  const map = new Map<string, Float32Array>();
+  for (let i = 0; i < filtered.length; i++) {
+    map.set(filtered[i], output[i].data as Float32Array);
   }
+  return map;
+}
+
+/**
+ * Compute proximity scores for a missed guess against cached article embeddings.
+ * Returns { articleWord → score 0–1 } only for words above a meaningful threshold.
+ * Cosine range [0.40, 1.0] is linearly mapped to score [0, 1].
+ */
+export async function getProximityMap(
+  guessNorm: string,
+  articleEmbeddings: Map<string, Float32Array>,
+): Promise<{ [normalized: string]: number }> {
+  if (!articleEmbeddings.size) return {};
+  await initEmbedder();
+  const out = await _embedder([guessNorm], { pooling: 'mean', normalize: true });
+  const guessVec = out[0].data as Float32Array;
+
+  const result: { [norm: string]: number } = {};
+  for (const [word, vec] of articleEmbeddings) {
+    const cosine = dot(guessVec, vec); // vectors are normalised → dot = cosine
+    const score = Math.max(0, (cosine - 0.40) / 0.60); // map [0.40,1.0] → [0,1]
+    if (score > 0) result[word] = Math.min(1, score);
+  }
+  return result;
 }

@@ -87,8 +87,8 @@ export interface FloatingEmoji {
 
 export interface WordEntry {
   word: string;
-  /** 'found' = in article, 'miss' = not found, 'common' = too common, 'close' = proximity match */
-  status: 'found' | 'miss' | 'common' | 'close';
+  /** 'found' = in article, 'miss' = not found, 'close' = proximity match */
+  status: 'found' | 'miss' | 'close';
   timestamp: number;
 }
 

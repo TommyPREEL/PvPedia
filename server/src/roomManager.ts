@@ -4,7 +4,6 @@ import {
   ChatMessage, GameState, Token, SessionData,
 } from './types';
 import { normalizeWord } from './wikipedia';
-import { isStopword } from './stopwords';
 
 // ---- Storage ----
 const rooms = new Map<string, Room>();
@@ -145,8 +144,8 @@ export function createRoom(playerName: string, playerId: string): Room {
   const room: Room = {
     code, leaderId: playerId,
     players: new Map([[playerId, leader]]),
-    language: 'en',
-    gameMode: 'coop',
+    language: 'fr',
+    gameMode: 'competitive',
     game: {
       status: 'waiting', articleTitle: '', targetNormalized: '',
       tokens: [], revealedWords: new Set(), playerRevealedWords: new Map(), winnerOrder: [],
@@ -255,11 +254,10 @@ export function startGame(code: string, tokens: Token[], articleTitle: string): 
 }
 
 export type SubmitResult =
-  | { result: 'win';          normalized: string; articleTitle: string; rank: number }
-  | { result: 'revealed';     normalized: string }
+  | { result: 'win';           normalized: string; articleTitle: string; rank: number }
+  | { result: 'revealed';      normalized: string }
   | { result: 'already-known'; normalized: string }
-  | { result: 'not-found';    normalized: string }
-  | { result: 'too-common';   normalized: string }
+  | { result: 'not-found';     normalized: string }
   | { result: 'error' };
 
 export function submitWord(code: string, playerId: string, word: string): SubmitResult {
@@ -301,11 +299,6 @@ export function submitWord(code: string, playerId: string, word: string): Submit
 
   // Check article
   const exists = game.tokens.some((t) => t.type === 'word' && t.normalized === normalized);
-
-  // Stopword check — only block if the word is not actually in the article
-  if (!exists && isStopword(normalized, room.language)) {
-    return { result: 'too-common', normalized };
-  }
   if (!exists) return { result: 'not-found', normalized };
 
   if (room.gameMode === 'competitive') {

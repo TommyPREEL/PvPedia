@@ -47,10 +47,6 @@ const WordInput = forwardRef<HTMLInputElement, Props>(({ disabled, myScore, word
         triggerShake();
         triggerFlash('err');
         onSubmit(word, 'miss');
-      } else if (res.result === 'too-common') {
-        triggerShake();
-        triggerFlash('err');
-        onSubmit(word, 'common');
       } else {
         triggerFlash('err');
       }

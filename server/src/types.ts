@@ -35,6 +35,8 @@ export interface GameState {
   startTime?: number;
   winnerId?: string;
   winnerOrder: string[];
+  /** Cached per-game article word embeddings for semantic proximity (server-only). */
+  articleEmbeddings?: Map<string, Float32Array>;
 }
 
 export interface Room {

@@ -8,7 +8,7 @@ import {
   addChatMessage, submitWord, startGame, serializeRoom, issueSession,
   getSession, deleteSession, startDisconnectGrace, cancelGrace, getArticleWordSet,
 } from './roomManager';
-import { fetchRandomArticle, tokenizeText, getProximityMap } from './wikipedia';
+import { fetchRandomArticle, tokenizeText, getProximityMap, buildArticleEmbeddings, initEmbedder } from './wikipedia';
 import { Language } from './types';
 
 const app = express();
@@ -167,6 +167,15 @@ io.on('connection', (socket: Socket) => {
       const tokens = tokenizeText(article.extract);
       const updatedRoom = startGame(meta.roomCode, tokens, article.title);
       if (!updatedRoom) return cb?.({ error: 'Failed to start game' });
+
+      // Build article word embeddings while game-loading is still true
+      const wordArr = Array.from(getArticleWordSet(meta.roomCode)).filter((w) => w.length >= 2);
+      try {
+        updatedRoom.game.articleEmbeddings = await buildArticleEmbeddings(wordArr);
+      } catch (e) {
+        console.error('[Embedder] Failed to build article embeddings:', e);
+      }
+
       io.to(meta.roomCode).emit('game-loading', false);
       systemMessage(meta.roomCode, 'Game started! Find the secret word!');
       io.to(meta.roomCode).emit('game-started', serializeRoom(updatedRoom));
@@ -210,6 +219,15 @@ io.on('connection', (socket: Socket) => {
       const tokens = tokenizeText(article.extract);
       const updatedRoom = startGame(meta.roomCode, tokens, article.title);
       if (!updatedRoom) return cb?.({ error: 'Failed to start game' });
+
+      // Build article word embeddings while game-loading is still true
+      const wordArr = Array.from(getArticleWordSet(meta.roomCode)).filter((w) => w.length >= 2);
+      try {
+        updatedRoom.game.articleEmbeddings = await buildArticleEmbeddings(wordArr);
+      } catch (e) {
+        console.error('[Embedder] Failed to build article embeddings:', e);
+      }
+
       io.to(meta.roomCode).emit('game-loading', false);
       systemMessage(meta.roomCode, '⚡ New round started!');
       io.to(meta.roomCode).emit('game-started', serializeRoom(updatedRoom));
@@ -327,18 +345,13 @@ io.on('connection', (socket: Socket) => {
       case 'not-found': {
         socket.emit('word-feedback', { result: 'not-found', word: word.trim() });
         broadcastRoom(meta.roomCode);
-        // Async proximity query — doesn't block the response
-        const articleWords = getArticleWordSet(meta.roomCode);
-        getProximityMap(result.normalized, room.language, articleWords).then((map) => {
+        // Async proximity query via Xenova embeddings — doesn't block the response
+        const artEmb = room.game.articleEmbeddings ?? new Map();
+        getProximityMap(result.normalized, artEmb).then((map) => {
           if (Object.keys(map).length > 0) {
             socket.emit('proximity-update', { map });
           }
-        });
-        break;
-      }
-      case 'too-common': {
-        socket.emit('word-feedback', { result: 'too-common', word: word.trim() });
-        broadcastRoom(meta.roomCode);
+        }).catch(console.error);
         break;
       }
       case 'already-known': {
@@ -431,4 +444,6 @@ app.get('/health', (_req, res) => res.json({ ok: true }));
 const PORT = process.env.PORT ?? 3850;
 httpServer.listen(PORT, () => {
   console.log(`PvPedia server on port ${PORT}`);
+  // Pre-warm the embedding model so the first game doesn't wait for it
+  initEmbedder().catch((e) => console.error('[Embedder] Warm-up failed:', e));
 });

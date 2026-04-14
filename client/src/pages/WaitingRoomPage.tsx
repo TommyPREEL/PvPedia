@@ -139,9 +139,6 @@ export default function WaitingRoomPage({ room, playerId, messages, isLoading, s
 
           {/* Chat */}
           <div className="card flex flex-col overflow-hidden" style={{ height: '380px' }}>
-            <div className="px-3 py-2 border-b border-slate-700/50 flex-shrink-0">
-              <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-widest">{t('chat')}</h2>
-            </div>
             <Chat messages={messages} playerId={playerId} />
           </div>
         </div>

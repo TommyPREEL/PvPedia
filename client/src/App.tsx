@@ -153,9 +153,6 @@ export default function App() {
       if (payload.result === 'not-found') {
         lastMissWordRef.current = payload.word;
         sounds.playNotFound();
-      } else if (payload.result === 'too-common') {
-        sounds.playTooCommon();
-        notify(t('tooCommon', { word: payload.word }), 'info');
       } else if (payload.result === 'already-known') {
         notify(t('alreadyGuessed', { word: payload.word }), 'info');
       }
