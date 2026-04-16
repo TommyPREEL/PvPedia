@@ -184,10 +184,8 @@ export default function App() {
               if (!existing || v > existing.score) {
                 next[k] = { word: guessWord, score: v };
               }
+              hasCloseMatch = true;
             }
-            // Word list 'close' marker only for meaningful proximity
-            if (v > 0.25) hasCloseMatch = true;
-          }
           return next;
         });
         // Retroactively mark this word as 'close' in the word list (only if it was a miss)
