@@ -186,6 +186,7 @@ export default function App() {
               }
               hasCloseMatch = true;
             }
+          }
           return next;
         });
         // Retroactively mark this word as 'close' in the word list (only if it was a miss)
