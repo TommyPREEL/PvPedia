@@ -90,14 +90,10 @@ export default function WaitingRoomPage({ room, playerId, messages, isLoading, s
                     <div>
                       <p className="text-xs text-slate-500 mb-1.5">{t('themes')}</p>
                       <div className="flex flex-wrap gap-1.5">
-                        {ALL_THEMES.map((theme) => (
+                        {room.themes.map((theme) => (
                           <span
                             key={theme}
-                            className={`text-xs px-2.5 py-1 rounded-full border ${
-                              room.themes.includes(theme)
-                                ? 'bg-indigo-900/50 text-indigo-300 border-indigo-600/50'
-                                : 'bg-slate-800 text-slate-600 border-slate-700 opacity-40 line-through'
-                            }`}
+                            className="text-xs px-2.5 py-1 rounded-full border bg-indigo-900/50 text-indigo-300 border-indigo-600/50"
                           >
                             {t(`theme_${theme}` as Parameters<typeof t>[0])}
                           </span>
@@ -185,20 +181,11 @@ export default function WaitingRoomPage({ room, playerId, messages, isLoading, s
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {ALL_THEMES.map((theme) => {
-                        const active = room.themes.length === 0 || room.themes.includes(theme);
+                        const active = room.themes.includes(theme);
                         const toggle = () => {
-                          let next: Theme[];
-                          if (room.themes.length === 0) {
-                            // All on → deselect this one
-                            next = ALL_THEMES.filter((t) => t !== theme);
-                          } else if (room.themes.includes(theme)) {
-                            next = room.themes.filter((t) => t !== theme);
-                            // If none left, reset to all
-                            if (next.length === 0) next = [];
-                          } else {
-                            next = [...room.themes, theme];
-                            if (next.length === ALL_THEMES.length) next = [];
-                          }
+                          const next = active
+                            ? room.themes.filter((t) => t !== theme)
+                            : [...room.themes, theme];
                           socket.emit('set-themes', next);
                         };
                         return (
@@ -208,7 +195,7 @@ export default function WaitingRoomPage({ room, playerId, messages, isLoading, s
                             className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
                               active
                                 ? 'bg-indigo-900/50 text-indigo-300 border-indigo-600/50'
-                                : 'bg-slate-800 text-slate-500 border-slate-700 line-through opacity-50'
+                                : 'bg-slate-800 text-slate-500 border-slate-700 opacity-60'
                             }`}
                           >
                             {t(`theme_${theme}` as Parameters<typeof t>[0])}
