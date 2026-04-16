@@ -20,7 +20,7 @@ export interface Player {
 }
 
 export interface Token {
-  type: 'word' | 'other';
+  type: 'word' | 'other' | 'number';
   value: string;
   normalized?: string;
 }
@@ -36,8 +36,6 @@ export interface GameState {
   startTime?: number;
   winnerId?: string;
   winnerOrder: string[];
-  /** Cached per-game article word embeddings for semantic proximity (server-only). */
-  articleEmbeddings?: Map<string, Float32Array>;
   /** Title words (original case) */
   titleWords: string[];
   /** Title words normalized */
@@ -83,7 +81,7 @@ export interface SessionData {
 // ---- Serialized (client-safe) types ----
 
 export interface ClientToken {
-  type: 'word' | 'other';
+  type: 'word' | 'other' | 'number';
   value: string;
   length: number;
   revealed: boolean;

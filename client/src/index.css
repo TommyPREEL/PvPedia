@@ -139,6 +139,20 @@
   90%     { transform: translateX(4px); }
 }
 
+/* ─── Word length label (always-visible inside hidden blocks) ───── */
+.word-length-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(148, 163, 184, 0.5);
+  font-size: 0.55em;
+  font-weight: 600;
+  pointer-events: none;
+  user-select: none;
+}
+
 /* ─── Letter hint tooltip ──────────────────────────────────────── */
 .hint-tooltip {
   position: absolute;

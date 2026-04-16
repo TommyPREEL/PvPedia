@@ -1,4 +1,3 @@
-import { useState, useRef } from 'react';
 import { ClientToken, ProximityMap, ProximityWordEntry } from '../types';
 import { proximityColor, proximityTextColor } from '../sounds';
 import { useI18n } from '../App';
@@ -18,32 +17,15 @@ function normalizeForTitle(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z]/g, '');
 }
 
-interface HintState { text: string; tokenIndex: number }
-
 export default function ArticleDisplay({
   tokens, revealedWords, articleTitle, titleWordLengths, titleRevealed, proximityMap, proximityWordMap, onHiddenWordClick,
 }: Props) {
   const { t } = useI18n();
   const revealedSet = new Set(revealedWords);
-  const [hint, setHint] = useState<HintState | null>(null);
-  const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const titleNorms = articleTitle
     ? articleTitle.split(/\s+/).map(normalizeForTitle).filter(Boolean)
     : [];
-
-  const showHint = (text: string, idx: number) => {
-    if (hintTimer.current) clearTimeout(hintTimer.current);
-    setHint({ text, tokenIndex: idx });
-    hintTimer.current = setTimeout(() => setHint(null), 2000);
-  };
-
-  const handleHiddenClick = (e: React.MouseEvent, idx: number, length: number) => {
-    e.stopPropagation();
-    const label = length === 1 ? '1 letter' : `${length} letters`;
-    showHint(label, idx);
-    onHiddenWordClick();
-  };
 
   if (!tokens || tokens.length === 0) {
     return (
@@ -83,10 +65,10 @@ export default function ArticleDisplay({
                   return (
                     <span
                       key={wi}
-                      className="title-word-hidden-block relative group"
+                      className="title-word-hidden-block relative"
                       style={{ width: `${Math.max(len * 1.1, 2)}ch` }}
                     >
-                      <span className="absolute inset-0 flex items-center justify-center text-slate-500 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                      <span className="absolute inset-0 flex items-center justify-center text-slate-500 text-[10px] pointer-events-none">
                         {len}
                       </span>
                     </span>
@@ -99,6 +81,23 @@ export default function ArticleDisplay({
       {tokens.map((token, i) => {
         if (token.type === 'other') {
           return <span key={i}>{token.value}</span>;
+        }
+
+        // Number token — hidden during game, revealed when finished
+        if (token.type === 'number') {
+          if (token.revealed) {
+            return <span key={i}>{token.value}</span>;
+          }
+          return (
+            <span
+              key={i}
+              className="word-hidden"
+              style={{ width: `${Math.max(token.length * 0.58, 0.6)}em` }}
+              onClick={onHiddenWordClick}
+            >
+              <span className="word-length-label">{token.length}</span>
+            </span>
+          );
         }
 
         const norm = token.normalized ?? '';
@@ -121,8 +120,6 @@ export default function ArticleDisplay({
         const proximityEntry = proximityWordMap[norm];
         const showPlaceholder = !!proximityEntry && token.length >= 4;
 
-        const isShowingHint = hint?.tokenIndex === i;
-
         return (
           <span
             key={i}
@@ -131,32 +128,17 @@ export default function ArticleDisplay({
               width: `${Math.max(token.length * 0.58, 0.6)}em`,
               ...(bgColor ? { '--word-bg': bgColor } as React.CSSProperties : {}),
             }}
-            onClick={(e) => handleHiddenClick(e, i, token.length)}
-            onMouseEnter={() => {
-              if (hintTimer.current) clearTimeout(hintTimer.current);
-              setHint({ text: `${token.length} letter${token.length !== 1 ? 's' : ''}`, tokenIndex: i });
-            }}
-            onMouseLeave={() => {
-              hintTimer.current = setTimeout(() => setHint(null), 400);
-            }}
+            onClick={onHiddenWordClick}
           >
-            {showPlaceholder && !isShowingHint && (
+            {showPlaceholder ? (
               <span
                 className="proximity-placeholder"
                 style={{ color: proximityTextColor(proximityEntry.score) }}
               >
                 {proximityEntry.word}
               </span>
-            )}
-            {isShowingHint && (
-              <span className="hint-tooltip">
-                {token.length} letter{token.length !== 1 ? 's' : ''}
-                {hasProximity && (
-                  <span style={{ marginLeft: '4px', opacity: 0.7 }}>
-                    {score > 0.7 ? '🔥' : score > 0.4 ? '🌡️' : '❄️'}
-                  </span>
-                )}
-              </span>
+            ) : (
+              <span className="word-length-label">{token.length}</span>
             )}
           </span>
         );

@@ -83,9 +83,13 @@ export function cancelGrace(token: string) {
 
 // ---- Serialization ----
 function serializeTokensFromSet(game: GameState, revealedSet: Set<string>): ClientToken[] {
+  const finished = game.status === 'finished';
   return game.tokens.map((token) => {
     if (token.type === 'other') {
       return { type: 'other', value: token.value, length: token.value.length, revealed: true };
+    }
+    if (token.type === 'number') {
+      return { type: 'number', value: finished ? token.value : '', length: token.value.length, revealed: finished };
     }
     const norm = token.normalized ?? '';
     const revealed = revealedSet.has(norm);
@@ -325,6 +329,9 @@ export function submitWord(code: string, playerId: string, word: string): Submit
       for (const personalSet of game.playerRevealedWords.values()) {
         for (const w of personalSet) game.revealedWords.add(w);
       }
+      // Reveal every title word in the body text and in the title display
+      for (const norm of game.titleNormalized) game.revealedWords.add(norm);
+      game.titleRevealed.fill(true);
       if (room.timerInterval) { clearInterval(room.timerInterval); room.timerInterval = undefined; }
     }
     return { result: 'win', normalized, articleTitle: game.articleTitle, rank };

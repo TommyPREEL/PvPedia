@@ -15,7 +15,7 @@ import GamePage from './pages/GamePage';
 // ---- i18n context ----
 interface I18nCtx { uiLang: UILang; setUILang: (l: UILang) => void; t: TFn }
 export const I18nContext = createContext<I18nCtx>({
-  uiLang: 'en', setUILang: () => {}, t: createT('en'),
+  uiLang: 'fr', setUILang: () => {}, t: createT('fr'),
 });
 export const useT = () => useContext(I18nContext).t;
 export const useI18n = () => useContext(I18nContext);
@@ -34,7 +34,7 @@ interface Notif { id: string; message: string; type: 'info' | 'success' | 'error
 type AppPage = 'lobby' | 'waiting' | 'game';
 
 export default function App() {
-  const [uiLang, setUILang] = useState<UILang>('en');
+  const [uiLang, setUILang] = useState<UILang>('fr');
   const t = createT(uiLang);
 
   const [page, setPage] = useState<AppPage>('lobby');

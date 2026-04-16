@@ -19,7 +19,7 @@ export interface ClientPlayer {
 }
 
 export interface ClientToken {
-  type: 'word' | 'other';
+  type: 'word' | 'other' | 'number';
   value: string;
   length: number;
   revealed: boolean;
