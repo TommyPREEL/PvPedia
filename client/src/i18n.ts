@@ -116,6 +116,18 @@ const T = {
     // Sounds
     soundOn: '🔊',
     soundOff: '🔇',
+    // Themes
+    themes: 'Themes',
+    themesDesc: 'All topics allowed',
+    themesFiltered: '{{n}} theme(s) selected',
+    theme_people: '👤 People',
+    theme_geography: '🌍 Geography',
+    theme_science: '🔬 Science',
+    theme_history: '📜 History',
+    theme_arts: '🎨 Arts',
+    theme_sports: '⚽ Sports',
+    theme_nature: '🌿 Nature',
+    theme_technology: '💻 Technology',
   },
   fr: {
     subtitle: 'compétitif',
@@ -218,6 +230,18 @@ const T = {
     viewWikipedia: '🔗 Voir sur Wikipédia',
     soundOn: '🔊',
     soundOff: '🔇',
+    // Themes
+    themes: 'Thèmes',
+    themesDesc: 'Tous les sujets autorisés',
+    themesFiltered: '{{n}} thème(s) sélectionné(s)',
+    theme_people: '👤 Personnalités',
+    theme_geography: '🌍 Géographie',
+    theme_science: '🔬 Sciences',
+    theme_history: '📜 Histoire',
+    theme_arts: '🎨 Arts',
+    theme_sports: '⚽ Sports',
+    theme_nature: '🌿 Nature',
+    theme_technology: '💻 Technologie',
   },
 } as const;
 

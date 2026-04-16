@@ -6,10 +6,10 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   createRoom, getRoom, joinRoom, removePlayer, setPlayerReady, setLanguage, setGameMode,
   addChatMessage, submitWord, startGame, serializeRoom, issueSession,
-  getSession, deleteSession, startDisconnectGrace, cancelGrace, getArticleWordSet, setDifficulty,
+  getSession, deleteSession, startDisconnectGrace, cancelGrace, getArticleWordSet, setDifficulty, setThemes,
 } from './roomManager';
 import { fetchRandomArticle, tokenizeText, getProximityMap } from './wikipedia';
-import { Language, Difficulty } from './types';
+import { Language, Difficulty, Theme } from './types';
 
 const app = express();
 app.use(cors());
@@ -176,6 +176,14 @@ io.on('connection', (socket: Socket) => {
     const room = setDifficulty(meta.roomCode, meta.playerId, difficulty);
     if (room) broadcastRoom(meta.roomCode);
   });
+  // ── CHANGE THEMES ─────────────────────────────────────────────────────────────────
+  socket.on('set-themes', (themes: Theme[]) => {
+    const meta = socketToRoom.get(socket.id);
+    if (!meta) return;
+    if (!Array.isArray(themes)) return;
+    const room = setThemes(meta.roomCode, meta.playerId, themes);
+    if (room) broadcastRoom(meta.roomCode);
+  });
   // ── START GAME ───────────────────────────────────────────────────────────────
   socket.on('start-game', async (cb?: (res: { error?: string }) => void) => {
     const meta = socketToRoom.get(socket.id);
@@ -191,7 +199,7 @@ io.on('connection', (socket: Socket) => {
 
     try {
       io.to(meta.roomCode).emit('game-loading', true);
-      const article = await fetchRandomArticle(room.language, room.difficulty);
+      const article = await fetchRandomArticle(room.language, room.difficulty, room.themes);
       const tokens = tokenizeText(article.extract);
       const updatedRoom = startGame(meta.roomCode, tokens, article.title, article.url);
       if (!updatedRoom) return cb?.({ error: 'Failed to start game' });
@@ -235,7 +243,7 @@ io.on('connection', (socket: Socket) => {
 
     try {
       io.to(meta.roomCode).emit('game-loading', true);
-      const article = await fetchRandomArticle(room.language, room.difficulty);
+      const article = await fetchRandomArticle(room.language, room.difficulty, room.themes);
       const tokens = tokenizeText(article.extract);
       const updatedRoom = startGame(meta.roomCode, tokens, article.title, article.url);
       if (!updatedRoom) return cb?.({ error: 'Failed to start game' });

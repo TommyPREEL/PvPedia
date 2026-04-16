@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import {
-  Room, Player, Language, GameMode, Difficulty, ClientRoom, ClientToken, ClientGameState,
+  Room, Player, Language, GameMode, Difficulty, Theme, ClientRoom, ClientToken, ClientGameState,
   ChatMessage, GameState, Token, SessionData,
 } from './types';
 import { normalizeWord } from './wikipedia';
@@ -149,6 +149,7 @@ export function serializeRoom(room: Room, playerId?: string): ClientRoom {
     language: room.language,
     gameMode: room.gameMode,
     difficulty: room.difficulty,
+    themes: room.themes,
     game: clientGame,
   };
 }
@@ -166,6 +167,7 @@ export function createRoom(playerName: string, playerId: string): Room {
     language: 'fr',
     gameMode: 'competitive',
     difficulty: 'medium',
+    themes: [],
     game: {
       status: 'waiting', articleTitle: '', targetNormalized: '',
       tokens: [], revealedWords: new Set(), playerRevealedWords: new Map(), winnerOrder: [],
@@ -412,6 +414,17 @@ export function setDifficulty(code: string, playerId: string, difficulty: Diffic
   if (!room || room.leaderId !== playerId) return null;
   if (room.game.status !== 'waiting') return null;
   room.difficulty = difficulty;
+  return room;
+}
+
+const ALL_THEMES: Theme[] = ['people', 'geography', 'science', 'history', 'arts', 'sports', 'nature', 'technology'];
+
+export function setThemes(code: string, playerId: string, themes: Theme[]): Room | null {
+  const room = rooms.get(code);
+  if (!room || room.leaderId !== playerId) return null;
+  if (room.game.status !== 'waiting') return null;
+  // Validate and deduplicate
+  room.themes = [...new Set(themes)].filter((t) => ALL_THEMES.includes(t));
   return room;
 }
 

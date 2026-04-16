@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { JaroWinklerDistance, LevenshteinDistance, PorterStemmerFr, PorterStemmer } from 'natural';
-import { Language, Token, Difficulty } from './types';
+import { Language, Token, Difficulty, Theme } from './types';
 
 interface WikiSummary {
   title: string;
@@ -54,6 +54,70 @@ export function normalizeWord(word: string): string {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z]/g, '');
+}
+
+// ---- Theme category matching ----
+
+const THEME_KEYWORDS: Record<Theme, Record<Language, string[]>> = {
+  people: {
+    fr: ['acteur', 'actrice', 'chanteur', 'chanteuse', 'personnalité', 'réalisateur', 'écrivain', 'auteur', 'philosophe', 'footballeur', 'sportif', 'politicien', 'cinéaste', 'naissance', 'musicien', 'peintre', 'sculpteur'],
+    en: ['actor', 'actress', 'singer', 'people', 'born in', 'politician', 'writer', 'author', 'philosopher', 'footballer', 'athlete', 'director', 'musician', 'painter'],
+  },
+  geography: {
+    fr: ['commune', 'ville', 'pays', 'région', 'département', 'fleuve', 'rivière', 'montagne', 'île', 'lac', 'géographie', 'capitale', 'territoire'],
+    en: ['city', 'town', 'country', 'region', 'river', 'mountain', 'island', 'lake', 'geography', 'county', 'district', 'capital', 'territory'],
+  },
+  science: {
+    fr: ['physique', 'chimie', 'biologie', 'mathématique', 'astronomie', 'médecine', 'science', 'concept', 'théorie', 'informatique théorie'],
+    en: ['physics', 'chemistry', 'biology', 'mathematics', 'astronomy', 'medicine', 'science', 'theorem', 'theory'],
+  },
+  history: {
+    fr: ['histoire', 'guerre', 'révolution', 'empire', 'siècle', 'bataille', 'antiquité', 'moyen âge', 'traité', 'conflit'],
+    en: ['history', 'war', 'revolution', 'empire', 'century', 'battle', 'ancient', 'medieval', 'treaty', 'conflict'],
+  },
+  arts: {
+    fr: ['film', 'musique', 'peinture', 'littérature', 'cinéma', 'album', 'roman', 'bande dessinée', 'opéra', 'sculpture', 'architecture'],
+    en: ['film', 'music', 'painting', 'literature', 'cinema', 'album', 'novel', 'comic', 'opera', 'sculpture', 'architecture'],
+  },
+  sports: {
+    fr: ['sport', 'football', 'tennis', 'cyclisme', 'natation', 'athlétisme', 'rugby', 'basketball', 'handball', 'jeux olympiques'],
+    en: ['sport', 'football', 'tennis', 'cycling', 'swimming', 'athletics', 'olympic', 'rugby', 'basketball', 'baseball'],
+  },
+  nature: {
+    fr: ['animal', 'plante', 'espèce', 'mammifère', 'oiseau', 'insecte', 'poisson', 'reptile', 'faune', 'flore', 'botanique', 'zoologie'],
+    en: ['animal', 'plant', 'species', 'mammal', 'bird', 'insect', 'fish', 'reptile', 'wildlife', 'botany', 'zoology'],
+  },
+  technology: {
+    fr: ['informatique', 'technologie', 'logiciel', 'internet', 'programmation', 'réseau', 'langage de programmation', 'matériel'],
+    en: ['computing', 'technology', 'software', 'internet', 'programming', 'network', 'engineering', 'hardware', 'language'],
+  },
+};
+
+async function fetchArticleCategories(title: string, language: Language): Promise<string[]> {
+  try {
+    const res = await axios.get<{
+      query: { pages: Record<string, { categories?: Array<{ title: string }> }> };
+    }>(`https://${language}.wikipedia.org/w/api.php`, {
+      timeout: 8000,
+      headers: { 'User-Agent': 'PvPedia/1.0 (educational game)' },
+      params: { action: 'query', titles: title, prop: 'categories', cllimit: 50, format: 'json', redirects: 1 },
+    });
+    const page = Object.values(res.data?.query?.pages ?? {})[0];
+    return (page?.categories ?? []).map((c) => c.title.toLowerCase());
+  } catch {
+    return [];
+  }
+}
+
+function articleMatchesThemes(categories: string[], themes: Theme[], language: Language): boolean {
+  if (themes.length === 0) return true;
+  for (const theme of themes) {
+    const keywords = THEME_KEYWORDS[theme][language];
+    for (const cat of categories) {
+      if (keywords.some((kw) => cat.includes(kw))) return true;
+    }
+  }
+  return false;
 }
 
 // Tokenize plain text into word/number/other tokens
@@ -138,6 +202,7 @@ async function fetchLeadExtract(
 export async function fetchRandomArticle(
   language: Language,
   difficulty: Difficulty = 'medium',
+  themes: Theme[] = [],
 ): Promise<WikiSummary> {
   const base = `https://${language}.wikipedia.org/api/rest_v1`;
   const headers = { 'User-Agent': 'PvPedia/1.0 (educational game)' };
@@ -145,6 +210,12 @@ export async function fetchRandomArticle(
 
   const isValid = (title: string, extract: string, type: string) =>
     type === 'standard' && !!extract && title.trim().split(/\s+/).length <= 3;
+
+  const checkThemes = async (title: string): Promise<boolean> => {
+    if (themes.length === 0) return true;
+    const cats = await fetchArticleCategories(title, language);
+    return articleMatchesThemes(cats, themes, language);
+  };
 
   // Easy mode: pick from top-viewed articles
   if (difficulty === 'easy') {
@@ -161,6 +232,7 @@ export async function fetchRandomArticle(
           );
           const { title, extract, type } = res.data;
           if (!isValid(title, extract, type)) continue;
+          if (!await checkThemes(title)) continue;
           const fullExtract = await fetchLeadExtract(title, language, extract);
           return { title, extract: fullExtract, url: buildArticleUrl(title, language) };
         } catch (err: unknown) {
@@ -180,6 +252,7 @@ export async function fetchRandomArticle(
       );
       const { title, extract, type } = res.data;
       if (!isValid(title, extract, type)) continue;
+      if (!await checkThemes(title)) continue;
       const fullExtract = await fetchLeadExtract(title, language, extract);
       return { title, extract: fullExtract, url: buildArticleUrl(title, language) };
     } catch (err: unknown) {

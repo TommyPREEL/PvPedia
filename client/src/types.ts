@@ -1,6 +1,7 @@
 export type Language = 'en' | 'fr';
 export type GameStatus = 'waiting' | 'playing' | 'finished';
 export type Difficulty = 'easy' | 'medium' | 'hard';
+export type Theme = 'people' | 'geography' | 'science' | 'history' | 'arts' | 'sports' | 'nature' | 'technology';
 
 export interface PlayerScore {
   wordsSubmitted: number;
@@ -48,6 +49,8 @@ export interface ClientRoom {
   language: Language;
   gameMode: 'competitive' | 'coop';
   difficulty: Difficulty;
+  /** Empty = no filter (all themes allowed). Non-empty = only these themes. */
+  themes: Theme[];
   game: ClientGameState;
 }
 

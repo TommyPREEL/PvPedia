@@ -2,6 +2,7 @@ export type Language = 'en' | 'fr';
 export type GameStatus = 'waiting' | 'playing' | 'finished';
 export type GameMode = 'competitive' | 'coop';
 export type Difficulty = 'easy' | 'medium' | 'hard';
+export type Theme = 'people' | 'geography' | 'science' | 'history' | 'arts' | 'sports' | 'nature' | 'technology';
 
 export interface PlayerScore {
   wordsSubmitted: number;
@@ -55,6 +56,8 @@ export interface Room {
   language: Language;
   gameMode: GameMode;
   difficulty: Difficulty;
+  /** Empty = no filter (all themes). Non-empty = only these themes are allowed. */
+  themes: Theme[];
   game: GameState;
   chatHistory: ChatMessage[];
   timerInterval?: ReturnType<typeof setInterval>;
@@ -118,6 +121,7 @@ export interface ClientRoom {
   language: Language;
   gameMode: GameMode;
   difficulty: Difficulty;
+  themes: Theme[];
   game: ClientGameState;
 }
 
