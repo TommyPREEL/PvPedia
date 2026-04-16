@@ -49,6 +49,7 @@ export default function App() {
   const [proximityMap, setProximityMap] = useState<ProximityMap>({});
   const [proximityWordMap, setProximityWordMap] = useState<Record<string, ProximityWordEntry>>({});
   const [titleProximityScores, setTitleProximityScores] = useState<number[]>([]);
+  const [titleProximityWords, setTitleProximityWords] = useState<(string | null)[]>([]);
   const [soundMuted, setSoundMuted] = useState(false);
 
   const notifId = useRef(0);
@@ -106,6 +107,7 @@ export default function App() {
           setProximityMap({});
           setProximityWordMap({});
           setTitleProximityScores([]);
+          setTitleProximityWords([]);
           return 'waiting';
         }
         return prev;
@@ -119,6 +121,7 @@ export default function App() {
       setProximityMap({});
       setProximityWordMap({});
       setTitleProximityScores([]);
+      setTitleProximityWords([]);
       // Sync UI language to the room's game language
       setUILang(updatedRoom.language as UILang);
     });
@@ -136,6 +139,7 @@ export default function App() {
         notify(`🎉 ${payload.revealedByName} found: "${payload.articleTitle}"!`, 'success');
         setProximityMap({});
         setTitleProximityScores([]);
+        setTitleProximityWords([]);
         if (payload.revealedBy === playerIdRef.current) sounds.playWin();
       } else {
         // Leader hint reveal — add the word to everyone's word list
@@ -174,14 +178,15 @@ export default function App() {
         setProximityWordMap((prev) => {
           const next = { ...prev };
           for (const [k, v] of Object.entries(payload.map)) {
-            if (v > 0.25) {
+            // Track any match >= 0.09 (server minimum) — low scores render as faint text via proximityTextColor
+            if (v >= 0.09) {
               const existing = next[k];
-              // Only replace if this word is closer than what's already there
               if (!existing || v > existing.score) {
                 next[k] = { word: guessWord, score: v };
               }
-              hasCloseMatch = true;
             }
+            // Word list 'close' marker only for meaningful proximity
+            if (v > 0.25) hasCloseMatch = true;
           }
           return next;
         });
@@ -196,7 +201,7 @@ export default function App() {
           );
         }
       }
-      // Accumulate title word proximity scores
+      // Accumulate title word proximity scores + best-guess word per slot
       if (payload.titleProximityScores && payload.titleProximityScores.length > 0) {
         setTitleProximityScores((prev) => {
           const next = [...prev];
@@ -205,6 +210,17 @@ export default function App() {
           });
           return next;
         });
+        if (guessWord) {
+          setTitleProximityWords((prev) => {
+            const next = [...prev];
+            payload.titleProximityScores!.forEach((score, i) => {
+              if (score > 0.09 && score > (titleProximityScores[i] ?? 0)) {
+                next[i] = guessWord;
+              }
+            });
+            return next;
+          });
+        }
       }
     });
 
@@ -252,6 +268,7 @@ export default function App() {
     setProximityMap({});
     setProximityWordMap({});
     setTitleProximityScores([]);
+    setTitleProximityWords([]);
     setPage('lobby');
   }, []);
 
@@ -283,6 +300,7 @@ export default function App() {
             proximityMap={proximityMap}
             proximityWordMap={proximityWordMap}
             titleProximityScores={titleProximityScores}
+            titleProximityWords={titleProximityWords}
             soundMuted={soundMuted}
             onToggleSound={toggleSound}
             onWordSubmit={handleWordSubmit}

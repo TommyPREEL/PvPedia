@@ -1,5 +1,5 @@
 import { ClientToken, ProximityMap, ProximityWordEntry } from '../types';
-import { proximityColor, proximityTextColor } from '../sounds';
+import { proximityTextColor } from '../sounds';
 import { useI18n } from '../App';
 
 interface Props {
@@ -11,6 +11,7 @@ interface Props {
   proximityMap: ProximityMap;
   proximityWordMap: Record<string, ProximityWordEntry>;
   titleProximityScores: number[];
+  titleProximityWords?: (string | null)[];
   onHiddenWordClick: () => void;
 }
 
@@ -19,7 +20,7 @@ function normalizeForTitle(s: string): string {
 }
 
 export default function ArticleDisplay({
-  tokens, revealedWords, articleTitle, titleWordLengths, titleRevealed, proximityMap, proximityWordMap, titleProximityScores, onHiddenWordClick,
+  tokens, revealedWords, articleTitle, titleWordLengths, titleRevealed, proximityMap, proximityWordMap, titleProximityScores, titleProximityWords, onHiddenWordClick,
 }: Props) {
   const { t } = useI18n();
   const revealedSet = new Set(revealedWords);
@@ -67,16 +68,20 @@ export default function ArticleDisplay({
                     <span
                       key={wi}
                       className="title-word-hidden-block relative group"
-                      style={{
-                        width: `${Math.max(len * 1.1, 2)}ch`,
-                        backgroundColor: (titleProximityScores?.[wi] ?? 0) > 0.04
-                          ? proximityColor(titleProximityScores[wi])
-                          : undefined,
-                      }}
+                      style={{ width: `${Math.max(len * 1.1, 2)}ch` }}
                     >
-                      <span className="absolute inset-0 flex items-center justify-center text-slate-500 text-[10px] pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-                        {len}
-                      </span>
+                      {titleProximityWords?.[wi] ? (
+                        <span
+                          className="proximity-placeholder"
+                          style={{ color: proximityTextColor(titleProximityScores?.[wi] ?? 0), fontSize: '0.7em' }}
+                        >
+                          {titleProximityWords[wi]}
+                        </span>
+                      ) : (
+                        <span className="absolute inset-0 flex items-center justify-center text-slate-500 text-[10px] pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                          {len}
+                        </span>
+                      )}
                     </span>
                   );
                 })
@@ -119,10 +124,6 @@ export default function ArticleDisplay({
         }
 
         // Hidden word
-        const score = proximityMap[norm];
-        const hasProximity = score != null && score > 0.04;
-        const bgColor = hasProximity ? proximityColor(score) : undefined;
-
         const proximityEntry = proximityWordMap[norm];
         const showPlaceholder = !!proximityEntry && token.length >= 3;
 
@@ -130,10 +131,7 @@ export default function ArticleDisplay({
           <span
             key={i}
             className="word-hidden group"
-            style={{
-              width: `${Math.max(token.length * 0.58, 0.6)}em`,
-              backgroundColor: bgColor,
-            }}
+            style={{ width: `${Math.max(token.length * 0.58, 0.6)}em` }}
             onClick={onHiddenWordClick}
           >
             {showPlaceholder ? (

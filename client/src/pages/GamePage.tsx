@@ -22,6 +22,7 @@ interface Props {
   proximityMap: ProximityMap;
   proximityWordMap: Record<string, ProximityWordEntry>;
   titleProximityScores: number[];
+  titleProximityWords: (string | null)[];
   soundMuted: boolean;
   onToggleSound: () => void;
   onWordSubmit: (word: string, status: WordEntry['status']) => void;
@@ -82,7 +83,7 @@ function useWindowWidth() {
 }
 
 export default function GamePage({
-  room, playerId, messages, wordList, isLoading, proximityMap, proximityWordMap, titleProximityScores,
+  room, playerId, messages, wordList, isLoading, proximityMap, proximityWordMap, titleProximityScores, titleProximityWords,
   soundMuted, onToggleSound, onWordSubmit, onLeave,
 }: Props) {
   const { t } = useI18n();
@@ -312,6 +313,7 @@ export default function GamePage({
             proximityMap={proximityMap}
             proximityWordMap={proximityWordMap}
             titleProximityScores={titleProximityScores}
+            titleProximityWords={titleProximityWords}
             onHiddenWordClick={focusInput}
           />
         </main>

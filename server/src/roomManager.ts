@@ -98,7 +98,7 @@ function serializeTokensFromSet(game: GameState, revealedSet: Set<string>): Clie
       value: revealed ? token.value : '',
       length: token.value.length,
       revealed,
-      normalized: revealed ? norm : undefined,
+      normalized: norm || undefined, // always sent — client needs it for proximity lookup
     };
   });
 }
