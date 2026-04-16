@@ -44,7 +44,7 @@ export default function ArticleDisplay({
   const showTitle = titleWordLengths.length > 0 || titleWords.length > 0;
 
   return (
-    <div className="article-text text-[0.95rem] leading-loose text-slate-200 select-text">
+    <div className="article-text text-base leading-loose text-slate-200 select-text">
       {showTitle && (
         <div className="title-display">
           <p className="text-xs text-slate-500 uppercase tracking-widest mb-3 text-center">{t('findTheArticle')}</p>

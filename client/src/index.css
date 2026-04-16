@@ -162,7 +162,7 @@
   background: #1e293b;
   border: 1px solid #475569;
   color: #cbd5e1;
-  font-size: 0.7rem;
+  font-size: 1rem;
   font-weight: 600;
   padding: 2px 6px;
   border-radius: 4px;
@@ -203,7 +203,7 @@
 
 /* ─── Responsive game grid ─────────────────────────────────────── */
 @media (max-width: 480px) {
-  .article-text { line-height: 2; font-size: 0.9rem; }
+  .article-text { line-height: 2; font-size: 1rem; }
 }
 
 /* ─── Article title display ─────────────────────────────────────── */
