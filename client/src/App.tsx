@@ -192,6 +192,7 @@ export default function App() {
         });
         // Retroactively mark this word as 'close' in the word list (only if it was a miss)
         if (hasCloseMatch) {
+          sounds.playClose();
           setWordList((prev) =>
             prev.map((e) =>
               e.word.toLowerCase() === guessWord.toLowerCase() && e.status === 'miss'

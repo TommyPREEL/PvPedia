@@ -62,6 +62,12 @@ class SoundEngine {
     this.tone(300, 0.15, 'square', 0.1);
   }
 
+  /** Warm ascending hint when a guess is close to an article word */
+  playClose() {
+    this.tone(440, 0.1, 'sine', 0.16);
+    this.tone(554, 0.14, 'sine', 0.13, 0.09);
+  }
+
   toggle(): boolean {
     this.muted = !this.muted;
     return this.muted;

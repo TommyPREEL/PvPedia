@@ -73,7 +73,7 @@ export default function ArticleDisplay({
                       {titleProximityWords?.[wi] ? (
                         <span
                           className="proximity-placeholder"
-                          style={{ color: proximityTextColor(titleProximityScores?.[wi] ?? 0), fontSize: '0.7em' }}
+                          style={{ color: proximityTextColor(titleProximityScores?.[wi] ?? 0), fontSize: '0.85em' }}
                         >
                           {titleProximityWords[wi]}
                         </span>
