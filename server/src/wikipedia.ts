@@ -80,51 +80,60 @@ export function tokenizeText(text: string): Token[] {
   return tokens;
 }
 
+function htmlToPlainParagraphs(html: string): string[] {
+  return html
+    .split(/<\/?p[^>]*>/i)
+    .map((p) =>
+      p
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
+        .replace(/\s{2,}/g, ' ')
+        .trim()
+    )
+    .filter((p) => p.split(/\s+/).length >= 8); // skip very short fragments
+}
+
 /**
- * Fetch the lead section via mobile-sections API and return clean plain text,
- * trimmed to ~150-200 words while keeping whole paragraphs.
+ * Fetch the full article via mobile-sections API and return clean plain text
+ * with at least `minWords` words, accumulating whole paragraphs across sections.
  * Falls back to the summary extract on any error.
  */
 async function fetchLeadExtract(
   title: string,
   language: Language,
   fallback: string,
-  targetWords = 175,
+  minWords = 150,
 ): Promise<string> {
   try {
     const url = `https://${language}.wikipedia.org/api/rest_v1/page/mobile-sections/${encodeURIComponent(title.replace(/ /g, '_'))}`;
-    const res = await axios.get<{ lead: { sections: Array<{ text: string }> } }>(
+    const res = await axios.get<{
+      lead: { sections: Array<{ text: string }> };
+      remaining?: { sections: Array<{ text: string; line?: string }> };
+    }>(
       url,
       { timeout: 10000, headers: { 'User-Agent': 'PvPedia/1.0 (educational game)' } },
     );
-    const leadHtml: string = res.data?.lead?.sections?.[0]?.text ?? '';
-    if (!leadHtml) return fallback;
 
-    // Split on paragraph tags, strip HTML, decode entities from each paragraph
-    const paragraphs = leadHtml
-      .split(/<\/?p[^>]*>/i)
-      .map((p) =>
-        p
-          .replace(/<[^>]+>/g, ' ')
-          .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-          .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
-          .replace(/\s{2,}/g, ' ')
-          .trim()
-      )
-      .filter((p) => p.length > 30); // skip very short fragments
+    const allSections = [
+      ...(res.data?.lead?.sections ?? []),
+      ...(res.data?.remaining?.sections ?? []),
+    ];
 
-    if (paragraphs.length === 0) return fallback;
-
-    // Accumulate whole paragraphs until we reach targetWords
     const result: string[] = [];
     let totalWords = 0;
-    for (const para of paragraphs) {
-      const wc = para.split(/\s+/).length;
-      result.push(para);
-      totalWords += wc;
-      if (totalWords >= targetWords) break;
+
+    for (const section of allSections) {
+      if (!section.text) continue;
+      for (const para of htmlToPlainParagraphs(section.text)) {
+        result.push(para);
+        totalWords += para.split(/\s+/).length;
+        if (totalWords >= minWords) break;
+      }
+      if (totalWords >= minWords) break;
     }
 
+    if (result.length === 0) return fallback;
     return result.join('\n\n');
   } catch {
     return fallback;
