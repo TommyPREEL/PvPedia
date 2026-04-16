@@ -61,7 +61,7 @@ const WordInput = forwardRef<HTMLInputElement, Props>(({ disabled, myScore, word
           ref={ref}
           type="text"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => setInput(e.target.value.replace(/\s/g, ''))}
           disabled={disabled}
           placeholder={disabled ? t('gameOver') : t('typeToReveal')}
           maxLength={60}

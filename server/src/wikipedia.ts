@@ -1,9 +1,49 @@
 import axios from 'axios';
-import { Language, Token } from './types';
+import { Language, Token, Difficulty } from './types';
 
 interface WikiSummary {
   title: string;
   extract: string;
+  url: string;
+}
+
+// ---- Top-articles cache for difficulty mode ----
+const topArticlesCache = new Map<string, { articles: string[]; fetchedAt: number }>();
+const TOP_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+async function getTopArticles(language: Language): Promise<string[]> {
+  const cached = topArticlesCache.get(language);
+  if (cached && Date.now() - cached.fetchedAt < TOP_CACHE_TTL) return cached.articles;
+
+  const d = new Date();
+  d.setDate(d.getDate() - 1); // yesterday (today might not be available yet)
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+
+  const url = `https://wikimedia.org/api/rest_v1/metrics/pageviews/top/${language}.wikipedia/all-access/${year}/${month}/${day}`;
+  const res = await axios.get(url, {
+    timeout: 10000,
+    headers: { 'User-Agent': 'PvPedia/1.0 (educational game)' },
+  });
+
+  const articles: string[] = (res.data.items?.[0]?.articles ?? [])
+    .map((a: { article: string }) => a.article)
+    .filter((title: string) =>
+      !title.startsWith('Special:') &&
+      !title.startsWith('Wikipedia:') &&
+      !title.startsWith('Wikip\u00e9dia:') &&
+      title !== 'Main_Page' &&
+      title !== 'Wikip\u00e9dia:Accueil_principal'
+    )
+    .slice(0, 500);
+
+  topArticlesCache.set(language, { articles, fetchedAt: Date.now() });
+  return articles;
+}
+
+function buildArticleUrl(title: string, language: Language): string {
+  return `https://${language}.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`;
 }
 
 // Normalize: lowercase + strip diacritics + keep only a-z
@@ -37,23 +77,66 @@ export function tokenizeText(text: string): Token[] {
   return tokens;
 }
 
-export async function fetchRandomArticle(language: Language): Promise<WikiSummary> {
-  const base = `https://${language}.wikipedia.org/api/rest_v1`;
+function validateArticle(
+  title: string, extract: string, type: string,
+): boolean {
+  if (type !== 'standard') return false;
+  if (!extract || extract.length < 200 || extract.length > 5000) return false;
+  const wordCount = title.trim().split(/\s+/).length;
+  if (wordCount > 3) return false;
+  const targetNorm = normalizeWord(title.split(/\s+/)[0]);
+  const tokens = tokenizeText(extract);
+  return tokens.some((t) => t.type === 'word' && t.normalized === targetNorm);
+}
 
-  for (let attempt = 0; attempt < 20; attempt++) {
+export async function fetchRandomArticle(
+  language: Language,
+  difficulty: Difficulty = 'medium',
+): Promise<WikiSummary> {
+  const base = `https://${language}.wikipedia.org/api/rest_v1`;
+  const headers = { 'User-Agent': 'PvPedia/1.0 (educational game)' };
+
+  // Easy mode: pick from top-viewed articles
+  if (difficulty === 'easy') {
+    let topArticles: string[] = [];
+    try { topArticles = await getTopArticles(language); } catch { /* fallback to random */ }
+
+    if (topArticles.length > 0) {
+      const shuffled = [...topArticles].sort(() => Math.random() - 0.5);
+      for (let attempt = 0; attempt < Math.min(shuffled.length, 30); attempt++) {
+        try {
+          const randomTitle = shuffled[attempt];
+          const res = await axios.get<{ title: string; extract: string; type: string }>(
+            `${base}/page/summary/${encodeURIComponent(randomTitle)}`,
+            { timeout: 8000, headers },
+          );
+          const { title, extract, type } = res.data;
+          if (!validateArticle(title, extract, type)) continue;
+          return { title, extract, url: buildArticleUrl(title, language) };
+        } catch {
+          await new Promise((r) => setTimeout(r, 200));
+        }
+      }
+    }
+    // If top articles failed, fall through to random
+  }
+
+  // Medium / Hard / fallback: random articles
+  // Hard mode uses stricter extract length (shorter = less context = harder)
+  const maxExtract = difficulty === 'hard' ? 2000 : 5000;
+  const minExtract = difficulty === 'hard' ? 200 : 200;
+
+  for (let attempt = 0; attempt < 25; attempt++) {
     try {
       const res = await axios.get<{ title: string; extract: string; type: string }>(
         `${base}/page/random/summary`,
-        {
-          timeout: 8000,
-          headers: { 'User-Agent': 'PvPedia/1.0 (educational game)' },
-        }
+        { timeout: 8000, headers },
       );
 
       const { title, extract, type } = res.data;
 
       if (type !== 'standard') continue;
-      if (!extract || extract.length < 200 || extract.length > 5000) continue;
+      if (!extract || extract.length < minExtract || extract.length > maxExtract) continue;
 
       const wordCount = title.trim().split(/\s+/).length;
       if (wordCount > 3) continue;
@@ -65,7 +148,7 @@ export async function fetchRandomArticle(language: Language): Promise<WikiSummar
       );
       if (!appearsInText) continue;
 
-      return { title, extract };
+      return { title, extract, url: buildArticleUrl(title, language) };
     } catch {
       await new Promise((r) => setTimeout(r, 300));
     }

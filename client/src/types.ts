@@ -1,5 +1,6 @@
 export type Language = 'en' | 'fr';
 export type GameStatus = 'waiting' | 'playing' | 'finished';
+export type Difficulty = 'easy' | 'medium' | 'hard';
 
 export interface PlayerScore {
   wordsSubmitted: number;
@@ -34,6 +35,10 @@ export interface ClientGameState {
   winnerOrder: string[];
   articleTitle?: string;
   titleWordLengths: number[];
+  /** Progressively revealed title words: string if revealed, null if hidden */
+  titleRevealed: (string | null)[];
+  /** Wikipedia article URL (only when finished) */
+  articleUrl?: string;
 }
 
 export interface ClientRoom {
@@ -42,6 +47,7 @@ export interface ClientRoom {
   players: ClientPlayer[];
   language: Language;
   gameMode: 'competitive' | 'coop';
+  difficulty: Difficulty;
   game: ClientGameState;
 }
 

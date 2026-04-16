@@ -262,6 +262,16 @@ export default function GamePage({
               {room.game.articleTitle}
             </span>
           </span>
+          {room.game.articleUrl && (
+            <a
+              href={room.game.articleUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 ml-3 text-xs text-amber-300 hover:text-amber-100 underline underline-offset-2 transition-colors"
+            >
+              {t('viewWikipedia')}
+            </a>
+          )}
           {isLeader && (
             <span className="text-amber-400/70 text-xs ml-3 hidden xs:inline">
               {t('canStartNewGame')}
@@ -297,6 +307,7 @@ export default function GamePage({
             revealedWords={room.game.revealedWords}
             articleTitle={room.game.articleTitle}
             titleWordLengths={room.game.titleWordLengths}
+            titleRevealed={room.game.titleRevealed ?? []}
             proximityMap={proximityMap}
             proximityWordMap={proximityWordMap}
             onHiddenWordClick={focusInput}

@@ -6,10 +6,10 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   createRoom, getRoom, joinRoom, removePlayer, setPlayerReady, setLanguage, setGameMode,
   addChatMessage, submitWord, startGame, serializeRoom, issueSession,
-  getSession, deleteSession, startDisconnectGrace, cancelGrace, getArticleWordSet,
+  getSession, deleteSession, startDisconnectGrace, cancelGrace, getArticleWordSet, setDifficulty,
 } from './roomManager';
 import { fetchRandomArticle, tokenizeText, getProximityMap, buildArticleEmbeddings, initEmbedder } from './wikipedia';
-import { Language } from './types';
+import { Language, Difficulty } from './types';
 
 const app = express();
 app.use(cors());
@@ -147,7 +147,14 @@ io.on('connection', (socket: Socket) => {
     const room = setGameMode(meta.roomCode, meta.playerId, mode);
     if (room) broadcastRoom(meta.roomCode);
   });
-
+  // ── CHANGE DIFFICULTY ─────────────────────────────────────────────────────────────────
+  socket.on('set-difficulty', (difficulty: Difficulty) => {
+    const meta = socketToRoom.get(socket.id);
+    if (!meta) return;
+    if (difficulty !== 'easy' && difficulty !== 'medium' && difficulty !== 'hard') return;
+    const room = setDifficulty(meta.roomCode, meta.playerId, difficulty);
+    if (room) broadcastRoom(meta.roomCode);
+  });
   // ── START GAME ───────────────────────────────────────────────────────────────
   socket.on('start-game', async (cb?: (res: { error?: string }) => void) => {
     const meta = socketToRoom.get(socket.id);
@@ -163,9 +170,9 @@ io.on('connection', (socket: Socket) => {
 
     try {
       io.to(meta.roomCode).emit('game-loading', true);
-      const article = await fetchRandomArticle(room.language);
+      const article = await fetchRandomArticle(room.language, room.difficulty);
       const tokens = tokenizeText(article.extract);
-      const updatedRoom = startGame(meta.roomCode, tokens, article.title);
+      const updatedRoom = startGame(meta.roomCode, tokens, article.title, article.url);
       if (!updatedRoom) return cb?.({ error: 'Failed to start game' });
 
       // Build article word embeddings while game-loading is still true
@@ -215,9 +222,9 @@ io.on('connection', (socket: Socket) => {
 
     try {
       io.to(meta.roomCode).emit('game-loading', true);
-      const article = await fetchRandomArticle(room.language);
+      const article = await fetchRandomArticle(room.language, room.difficulty);
       const tokens = tokenizeText(article.extract);
-      const updatedRoom = startGame(meta.roomCode, tokens, article.title);
+      const updatedRoom = startGame(meta.roomCode, tokens, article.title, article.url);
       if (!updatedRoom) return cb?.({ error: 'Failed to start game' });
 
       // Build article word embeddings while game-loading is still true

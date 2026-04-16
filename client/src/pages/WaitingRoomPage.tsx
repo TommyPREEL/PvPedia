@@ -125,6 +125,32 @@ export default function WaitingRoomPage({ room, playerId, messages, isLoading, s
                       {room.gameMode === 'competitive' ? t('compModeDesc') : t('coopModeDesc')}
                     </p>
                   </div>
+                  <div>
+                    <p className="text-xs text-slate-500 mb-2">{t('difficulty')}</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => socket.emit('set-difficulty', 'easy')}
+                        className={`flex-1 btn text-sm py-1.5 ${room.difficulty === 'easy' ? 'btn-primary' : 'btn-secondary'}`}
+                        title={t('easyModeDesc')}>
+                        {t('easyMode')}
+                      </button>
+                      <button
+                        onClick={() => socket.emit('set-difficulty', 'medium')}
+                        className={`flex-1 btn text-sm py-1.5 ${room.difficulty === 'medium' ? 'btn-primary' : 'btn-secondary'}`}
+                        title={t('mediumModeDesc')}>
+                        {t('mediumMode')}
+                      </button>
+                      <button
+                        onClick={() => socket.emit('set-difficulty', 'hard')}
+                        className={`flex-1 btn text-sm py-1.5 ${room.difficulty === 'hard' ? 'btn-primary' : 'btn-secondary'}`}
+                        title={t('hardModeDesc')}>
+                        {t('hardMode')}
+                      </button>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1.5">
+                      {room.difficulty === 'easy' ? t('easyModeDesc') : room.difficulty === 'hard' ? t('hardModeDesc') : t('mediumModeDesc')}
+                    </p>
+                  </div>
                   <button
                     onClick={() => { setStartError(''); socket.emit('start-game', (r: { error?: string }) => { if (r?.error) setStartError(r.error); }); }}
                     disabled={!allReady || isLoading}

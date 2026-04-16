@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import {
-  Room, Player, Language, GameMode, ClientRoom, ClientToken, ClientGameState,
+  Room, Player, Language, GameMode, Difficulty, ClientRoom, ClientToken, ClientGameState,
   ChatMessage, GameState, Token, SessionData,
 } from './types';
 import { normalizeWord } from './wikipedia';
@@ -109,6 +109,16 @@ function getEffectiveRevealedSet(room: Room, playerId?: string): Set<string> {
   return room.game.revealedWords;
 }
 
+function getEffectiveTitleRevealed(room: Room, playerId?: string): boolean[] {
+  const shared = room.game.titleRevealed;
+  if (room.gameMode === 'competitive' && room.game.status === 'playing' && playerId) {
+    const personal = room.game.playerTitleRevealed.get(playerId) ?? shared.map(() => false);
+    // merge: a slot is visible if the shared (leader) reveals it OR the player personally revealed it
+    return shared.map((s, i) => s || personal[i]);
+  }
+  return shared;
+}
+
 export function serializeRoom(room: Room, playerId?: string): ClientRoom {
   const finished = room.game.status === 'finished';
   const revealedSet = getEffectiveRevealedSet(room, playerId);
@@ -123,6 +133,10 @@ export function serializeRoom(room: Room, playerId?: string): ClientRoom {
     titleWordLengths: room.game.articleTitle
       ? room.game.articleTitle.split(/\s+/).filter(Boolean).map((w) => w.length)
       : [],
+    titleRevealed: getEffectiveTitleRevealed(room, playerId).map((revealed, i) =>
+      revealed ? room.game.titleWords[i] : null,
+    ),
+    articleUrl: finished ? room.game.articleUrl : undefined,
   };
   return {
     code: room.code,
@@ -130,6 +144,7 @@ export function serializeRoom(room: Room, playerId?: string): ClientRoom {
     players: Array.from(room.players.values()).map((p) => ({ ...p })),
     language: room.language,
     gameMode: room.gameMode,
+    difficulty: room.difficulty,
     game: clientGame,
   };
 }
@@ -146,9 +161,11 @@ export function createRoom(playerName: string, playerId: string): Room {
     players: new Map([[playerId, leader]]),
     language: 'fr',
     gameMode: 'competitive',
+    difficulty: 'medium',
     game: {
       status: 'waiting', articleTitle: '', targetNormalized: '',
       tokens: [], revealedWords: new Set(), playerRevealedWords: new Map(), winnerOrder: [],
+      titleWords: [], titleNormalized: [], titleRevealed: [], playerTitleRevealed: new Map(), articleUrl: '',
     },
     chatHistory: [],
   };
@@ -226,13 +243,19 @@ export function addChatMessage(
 
 // ---- Game logic ----
 
-export function startGame(code: string, tokens: Token[], articleTitle: string): Room | null {
+export function startGame(code: string, tokens: Token[], articleTitle: string, articleUrl: string): Room | null {
   const room = rooms.get(code);
   if (!room) return null;
 
+  const titleWords = articleTitle.split(/\s+/).filter(Boolean);
+  const titleNormalized = titleWords.map((w) => normalizeWord(w));
+  const titleRevealed = titleWords.map(() => false);
+
   const playerRevealedWords = new Map<string, Set<string>>();
+  const playerTitleRevealed = new Map<string, boolean[]>();
   for (const pid of room.players.keys()) {
     playerRevealedWords.set(pid, new Set());
+    playerTitleRevealed.set(pid, titleWords.map(() => false));
   }
 
   room.game = {
@@ -244,6 +267,11 @@ export function startGame(code: string, tokens: Token[], articleTitle: string): 
     playerRevealedWords,
     startTime: Date.now(),
     winnerOrder: [],
+    titleWords,
+    titleNormalized,
+    titleRevealed,
+    playerTitleRevealed,
+    articleUrl,
   };
 
   for (const player of room.players.values()) {
@@ -285,6 +313,11 @@ export function submitWord(code: string, playerId: string, word: string): Submit
     player.score.rank = rank;
     player.score.winTime = game.startTime ? Date.now() - game.startTime : 0;
 
+    // Reveal matching title positions on win
+    for (let i = 0; i < game.titleNormalized.length; i++) {
+      if (game.titleNormalized[i] === normalized) game.titleRevealed[i] = true;
+    }
+
     if (rank === 1) {
       game.status = 'finished';
       game.winnerId = playerId;
@@ -297,22 +330,49 @@ export function submitWord(code: string, playerId: string, word: string): Submit
     return { result: 'win', normalized, articleTitle: game.articleTitle, rank };
   }
 
-  // Check article
-  const exists = game.tokens.some((t) => t.type === 'word' && t.normalized === normalized);
-  if (!exists) return { result: 'not-found', normalized };
+  // Check article body
+  const existsInBody = game.tokens.some((t) => t.type === 'word' && t.normalized === normalized);
+
+  // Check title words (reveal matching non-target positions)
+  // In competitive: update only this player's personal title reveal
+  // In coop: update the shared titleRevealed
+  let newTitleReveal = false;
+  if (normalized !== game.targetNormalized) {
+    if (room.gameMode === 'competitive') {
+      const personalTitle = game.playerTitleRevealed.get(playerId) ?? game.titleRevealed.map(() => false);
+      for (let i = 0; i < game.titleNormalized.length; i++) {
+        if (game.titleNormalized[i] === normalized && !game.titleRevealed[i] && !personalTitle[i]) {
+          personalTitle[i] = true;
+          newTitleReveal = true;
+        }
+      }
+      if (newTitleReveal) game.playerTitleRevealed.set(playerId, personalTitle);
+    } else {
+      for (let i = 0; i < game.titleNormalized.length; i++) {
+        if (game.titleNormalized[i] === normalized && !game.titleRevealed[i]) {
+          game.titleRevealed[i] = true;
+          newTitleReveal = true;
+        }
+      }
+    }
+  }
+
+  if (!existsInBody && !newTitleReveal) return { result: 'not-found', normalized };
 
   if (room.gameMode === 'competitive') {
     const personalSet = game.playerRevealedWords.get(playerId) ?? new Set<string>();
-    if (personalSet.has(normalized) || game.revealedWords.has(normalized)) {
+    if ((personalSet.has(normalized) || game.revealedWords.has(normalized)) && !newTitleReveal) {
       return { result: 'already-known', normalized };
     }
-    personalSet.add(normalized);
-    game.playerRevealedWords.set(playerId, personalSet);
+    if (existsInBody) {
+      personalSet.add(normalized);
+      game.playerRevealedWords.set(playerId, personalSet);
+    }
     player.score.wordsRevealedFirst++;
     return { result: 'revealed', normalized };
   } else {
-    if (game.revealedWords.has(normalized)) return { result: 'already-known', normalized };
-    game.revealedWords.add(normalized);
+    if (game.revealedWords.has(normalized) && !newTitleReveal) return { result: 'already-known', normalized };
+    if (existsInBody) game.revealedWords.add(normalized);
     player.score.wordsRevealedFirst++;
     return { result: 'revealed', normalized };
   }
@@ -323,6 +383,14 @@ export function setGameMode(code: string, playerId: string, mode: GameMode): Roo
   if (!room || room.leaderId !== playerId) return null;
   if (room.game.status !== 'waiting') return null;
   room.gameMode = mode;
+  return room;
+}
+
+export function setDifficulty(code: string, playerId: string, difficulty: Difficulty): Room | null {
+  const room = rooms.get(code);
+  if (!room || room.leaderId !== playerId) return null;
+  if (room.game.status !== 'waiting') return null;
+  room.difficulty = difficulty;
   return room;
 }
 

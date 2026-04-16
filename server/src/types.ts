@@ -1,6 +1,7 @@
 export type Language = 'en' | 'fr';
 export type GameStatus = 'waiting' | 'playing' | 'finished';
 export type GameMode = 'competitive' | 'coop';
+export type Difficulty = 'easy' | 'medium' | 'hard';
 
 export interface PlayerScore {
   wordsSubmitted: number;
@@ -37,6 +38,16 @@ export interface GameState {
   winnerOrder: string[];
   /** Cached per-game article word embeddings for semantic proximity (server-only). */
   articleEmbeddings?: Map<string, Float32Array>;
+  /** Title words (original case) */
+  titleWords: string[];
+  /** Title words normalized */
+  titleNormalized: string[];
+  /** Which title word positions have been revealed by guesses (shared / coop / leader reveals) */
+  titleRevealed: boolean[];
+  /** Per-player title reveals for competitive mode */
+  playerTitleRevealed: Map<string, boolean[]>;
+  /** Full Wikipedia article URL */
+  articleUrl: string;
 }
 
 export interface Room {
@@ -45,6 +56,7 @@ export interface Room {
   players: Map<string, Player>;
   language: Language;
   gameMode: GameMode;
+  difficulty: Difficulty;
   game: GameState;
   chatHistory: ChatMessage[];
   timerInterval?: ReturnType<typeof setInterval>;
@@ -87,6 +99,10 @@ export interface ClientGameState {
   winnerOrder: string[];
   articleTitle?: string; // only when finished
   titleWordLengths: number[]; // always — shape of title without revealing words
+  /** Progressively revealed title words: string if revealed, null if hidden */
+  titleRevealed: (string | null)[];
+  /** Wikipedia article URL (only when finished) */
+  articleUrl?: string;
 }
 
 export interface ClientPlayer {
@@ -103,6 +119,7 @@ export interface ClientRoom {
   players: ClientPlayer[];
   language: Language;
   gameMode: GameMode;
+  difficulty: Difficulty;
   game: ClientGameState;
 }
 

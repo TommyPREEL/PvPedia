@@ -8,6 +8,7 @@ interface Props {
   revealedWords: string[];
   articleTitle?: string;
   titleWordLengths: number[];
+  titleRevealed: (string | null)[];
   proximityMap: ProximityMap;
   proximityWordMap: Record<string, ProximityWordEntry>;
   onHiddenWordClick: () => void;
@@ -20,7 +21,7 @@ function normalizeForTitle(s: string): string {
 interface HintState { text: string; tokenIndex: number }
 
 export default function ArticleDisplay({
-  tokens, revealedWords, articleTitle, titleWordLengths, proximityMap, proximityWordMap, onHiddenWordClick,
+  tokens, revealedWords, articleTitle, titleWordLengths, titleRevealed, proximityMap, proximityWordMap, onHiddenWordClick,
 }: Props) {
   const { t } = useI18n();
   const revealedSet = new Set(revealedWords);
@@ -69,18 +70,28 @@ export default function ArticleDisplay({
                 titleWords.map((word, wi) => (
                   <span key={wi} className="title-word-revealed-block">{word}</span>
                 ))
-              : /* Game in progress — show blank boxes with letter count */
-                titleWordLengths.map((len, wi) => (
-                  <span
-                    key={wi}
-                    className="title-word-hidden-block relative group"
-                    style={{ width: `${Math.max(len * 1.1, 2)}ch` }}
-                  >
-                    <span className="absolute inset-0 flex items-center justify-center text-slate-500 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                      {len}
+              : /* Game in progress — show revealed words or blank boxes with letter count */
+                titleWordLengths.map((len, wi) => {
+                  const revealedWord = titleRevealed?.[wi];
+                  if (revealedWord) {
+                    return (
+                      <span key={wi} className="title-word-revealed-block" style={{ fontSize: '1.5rem' }}>
+                        {revealedWord}
+                      </span>
+                    );
+                  }
+                  return (
+                    <span
+                      key={wi}
+                      className="title-word-hidden-block relative group"
+                      style={{ width: `${Math.max(len * 1.1, 2)}ch` }}
+                    >
+                      <span className="absolute inset-0 flex items-center justify-center text-slate-500 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                        {len}
+                      </span>
                     </span>
-                  </span>
-                ))
+                  );
+                })
             }
           </div>
         </div>
