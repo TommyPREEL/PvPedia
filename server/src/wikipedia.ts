@@ -133,7 +133,7 @@ async function fetchFullExtract(
       .replace(/\s{2,}/g, ' ')
       .trim();
 
-    if (countWords(plain) < 150) return summaryExtract;
+    if (countWords(plain) < 10) return summaryExtract;
 
     // Truncate cleanly at a sentence boundary near maxWords
     const words = plain.split(/\s+/);
@@ -183,7 +183,7 @@ export async function fetchRandomArticle(
 
   // All difficulties get the same amount of text
 
-  for (let attempt = 0; attempt < 25; attempt++) {
+  for (let attempt = 0; attempt < 50; attempt++) {
     try {
       const res = await axios.get<{ title: string; extract: string; type: string }>(
         `${base}/page/random/summary`,
@@ -198,15 +198,15 @@ export async function fetchRandomArticle(
       const wordCount = title.trim().split(/\s+/).length;
       if (wordCount > 3) continue;
 
+      const fullExtract = await fetchFullExtract(title, language, extract);
+      if (!hasEnoughWords(fullExtract)) continue;
+
       const targetNorm = normalizeWord(title.split(/\s+/)[0]);
-      const tokens = tokenizeText(extract);
+      const tokens = tokenizeText(fullExtract);
       const appearsInText = tokens.some(
         (t) => t.type === 'word' && t.normalized === targetNorm
       );
       if (!appearsInText) continue;
-
-      const fullExtract = await fetchFullExtract(title, language, extract);
-      if (!hasEnoughWords(fullExtract)) continue;
 
       return { title, extract: fullExtract, url: buildArticleUrl(title, language) };
     } catch {
