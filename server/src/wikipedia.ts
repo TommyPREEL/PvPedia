@@ -84,12 +84,55 @@ function validateArticle(
   title: string, extract: string, type: string,
 ): boolean {
   if (type !== 'standard') return false;
-  if (!extract || extract.length < 200 || extract.length > 5000) return false;
+  if (!extract || extract.length < 200 || extract.length > 12000) return false;
   const wordCount = title.trim().split(/\s+/).length;
   if (wordCount > 3) return false;
   const targetNorm = normalizeWord(title.split(/\s+/)[0]);
   const tokens = tokenizeText(extract);
   return tokens.some((t) => t.type === 'word' && t.normalized === targetNorm);
+}
+
+/**
+ * Fetch the full intro (lead section) of a Wikipedia article via the
+ * mobile-sections API, strip HTML tags, and return up to `maxChars` of text.
+ * Falls back to the summary extract if the sections call fails.
+ */
+async function fetchFullExtract(
+  title: string,
+  language: Language,
+  summaryExtract: string,
+  maxChars = 4000,
+): Promise<string> {
+  try {
+    const url = `https://${language}.wikipedia.org/api/rest_v1/page/mobile-sections/${encodeURIComponent(title.replace(/ /g, '_'))}`;
+    const res = await axios.get<{ lead: { sections: Array<{ text: string }> } }>(
+      url,
+      { timeout: 10000, headers: { 'User-Agent': 'PvPedia/1.0 (educational game)' } },
+    );
+    const leadText: string = res.data?.lead?.sections?.[0]?.text ?? '';
+    if (!leadText) return summaryExtract;
+
+    // Strip HTML tags and decode common entities
+    const plain = leadText
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&nbsp;/g, ' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+
+    if (plain.length < 200) return summaryExtract;
+
+    // Truncate cleanly at a sentence boundary near maxChars
+    if (plain.length <= maxChars) return plain;
+    const cutoff = plain.lastIndexOf('. ', maxChars);
+    return cutoff > 200 ? plain.slice(0, cutoff + 1) : plain.slice(0, maxChars);
+  } catch {
+    return summaryExtract;
+  }
 }
 
 export async function fetchRandomArticle(
@@ -115,7 +158,9 @@ export async function fetchRandomArticle(
           );
           const { title, extract, type } = res.data;
           if (!validateArticle(title, extract, type)) continue;
-          return { title, extract, url: buildArticleUrl(title, language) };
+          const fullExtract = await fetchFullExtract(title, language, extract);
+          if (!validateArticle(title, fullExtract, type)) continue;
+          return { title, extract: fullExtract, url: buildArticleUrl(title, language) };
         } catch {
           await new Promise((r) => setTimeout(r, 200));
         }
@@ -124,10 +169,9 @@ export async function fetchRandomArticle(
     // If top articles failed, fall through to random
   }
 
-  // Medium / Hard / fallback: random articles
-  // Hard mode uses stricter extract length (shorter = less context = harder)
-  const maxExtract = difficulty === 'hard' ? 2000 : 5000;
-  const minExtract = difficulty === 'hard' ? 200 : 200;
+  // All difficulties get the same amount of text
+  const maxExtract = 12000;
+  const minExtract = 200;
 
   for (let attempt = 0; attempt < 25; attempt++) {
     try {
@@ -139,7 +183,7 @@ export async function fetchRandomArticle(
       const { title, extract, type } = res.data;
 
       if (type !== 'standard') continue;
-      if (!extract || extract.length < minExtract || extract.length > maxExtract) continue;
+      if (!extract || extract.length < minExtract) continue;
 
       const wordCount = title.trim().split(/\s+/).length;
       if (wordCount > 3) continue;
@@ -151,7 +195,10 @@ export async function fetchRandomArticle(
       );
       if (!appearsInText) continue;
 
-      return { title, extract, url: buildArticleUrl(title, language) };
+      const fullExtract = await fetchFullExtract(title, language, extract);
+      if (fullExtract.length > maxExtract) continue;
+
+      return { title, extract: fullExtract, url: buildArticleUrl(title, language) };
     } catch {
       await new Promise((r) => setTimeout(r, 300));
     }

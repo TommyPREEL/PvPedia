@@ -130,6 +130,13 @@ export default function GamePage({
       bodyKey: 'revealDescBody',
       actions: [
         {
+          label: t('revealRandomBtn'),
+          variant: 'secondary',
+          onClick: () => socket.emit('reveal-random-word', (res: { error?: string; normalized?: string }) => {
+            if (res?.error) openDialog({ titleKey: 'revealDescTitle', bodyKey: 'revealDescBody', actions: [{ label: res.error, onClick: () => {} }] });
+          }),
+        },
+        {
           label: t('revealDescBtn'),
           variant: 'secondary',
           onClick: () => socket.emit('reveal-description', (res: { error?: string }) => {

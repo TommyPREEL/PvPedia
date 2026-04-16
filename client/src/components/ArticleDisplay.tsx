@@ -72,16 +72,15 @@ export default function ArticleDisplay({
                     >
                       {titleProximityWords?.[wi] ? (
                         <span
-                          className="proximity-placeholder"
+                          className="proximity-placeholder group-hover:opacity-0 transition-opacity"
                           style={{ color: proximityTextColor(titleProximityScores?.[wi] ?? 0), fontSize: '0.85em' }}
                         >
                           {titleProximityWords[wi]}
                         </span>
-                      ) : (
-                        <span className="absolute inset-0 flex items-center justify-center text-slate-500 text-[10px] pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-                          {len}
-                        </span>
-                      )}
+                      ) : null}
+                      <span className="absolute inset-0 flex items-center justify-center text-slate-500 text-[10px] pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                        {len}
+                      </span>
                     </span>
                   );
                 })
@@ -136,14 +135,13 @@ export default function ArticleDisplay({
           >
             {showPlaceholder ? (
               <span
-                className="proximity-placeholder"
+                className="proximity-placeholder group-hover:opacity-0 transition-opacity"
                 style={{ color: proximityTextColor(proximityEntry.score) }}
               >
                 {proximityEntry.word}
               </span>
-            ) : (
-              <span className="word-length-label opacity-0 group-hover:opacity-100 transition-opacity">{token.length}</span>
-            )}
+            ) : null}
+            <span className="word-length-label opacity-0 group-hover:opacity-100 transition-opacity">{token.length}</span>
           </span>
         );
       })}

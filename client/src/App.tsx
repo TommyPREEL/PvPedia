@@ -28,6 +28,11 @@ function loadSession(): StoredSession | null {
 }
 function clearSession() { sessionStorage.removeItem(SESSION_KEY); }
 
+/** Strip diacritics + lowercase — matches the server normalizeWord output */
+function normalizeForCompare(w: string): string {
+  return w.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+}
+
 // ---- Notification ----
 interface Notif { id: string; message: string; type: 'info' | 'success' | 'error' }
 
@@ -53,6 +58,7 @@ export default function App() {
   const [soundMuted, setSoundMuted] = useState(false);
 
   const notifId = useRef(0);
+  const closeWordsRef = useRef<Set<string>>(new Set());
 
   const notify = useCallback((message: string, type: Notif['type'] = 'info') => {
     const id = String(notifId.current++);
@@ -65,13 +71,18 @@ export default function App() {
     setWordList((prev) => {
       const lw = word.toLowerCase();
       const existing = prev.find((e) => e.word.toLowerCase() === lw);
+      // If server already told us this word is close, upgrade miss → close
+      const effectiveStatus =
+        status === 'miss' && closeWordsRef.current.has(normalizeForCompare(word))
+          ? 'close'
+          : status;
       if (existing) {
         if (status === 'found' && existing.status !== 'found') {
           return prev.map((e) => e.word.toLowerCase() === lw ? { ...e, status: 'found' } : e);
         }
         return prev;
       }
-      return [{ word, status, timestamp: Date.now() }, ...prev];
+      return [{ word, status: effectiveStatus, timestamp: Date.now() }, ...prev];
     });
   }, []);
 
@@ -122,6 +133,7 @@ export default function App() {
       setProximityWordMap({});
       setTitleProximityScores([]);
       setTitleProximityWords([]);
+      closeWordsRef.current.clear();
       // Sync UI language to the room's game language
       setUILang(updatedRoom.language as UILang);
     });
@@ -192,9 +204,10 @@ export default function App() {
         // Retroactively mark this word as 'close' in the word list (only if it was a miss)
         if (hasCloseMatch) {
           sounds.playClose();
+          closeWordsRef.current.add(guessWord);
           setWordList((prev) =>
             prev.map((e) =>
-              e.word.toLowerCase() === guessWord.toLowerCase() && e.status === 'miss'
+              normalizeForCompare(e.word) === guessWord && e.status === 'miss'
                 ? { ...e, status: 'close' }
                 : e
             )
@@ -269,6 +282,7 @@ export default function App() {
     setProximityWordMap({});
     setTitleProximityScores([]);
     setTitleProximityWords([]);
+    closeWordsRef.current.clear();
     setPage('lobby');
   }, []);
 

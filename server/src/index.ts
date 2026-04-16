@@ -277,9 +277,9 @@ io.on('connection', (socket: Socket) => {
     if (room.leaderId !== meta.playerId) return cb?.({ error: 'Not the leader' });
     if (room.game.status !== 'playing') return cb?.({ error: 'Game not running' });
 
-    const targetNorm = room.game.targetNormalized;
+    const titleNorms = new Set(room.game.titleNormalized);
     for (const t of room.game.tokens) {
-      if (t.type === 'word' && t.normalized && t.normalized !== targetNorm) {
+      if (t.type === 'word' && t.normalized && !titleNorms.has(t.normalized)) {
         room.game.revealedWords.add(t.normalized);
       }
     }
@@ -288,6 +288,41 @@ io.on('connection', (socket: Socket) => {
     systemMessage(meta.roomCode, `💡 Leader revealed the article body!`);
     broadcastRoom(meta.roomCode);
     cb?.({});
+  });
+
+  // ── REVEAL RANDOM WORD (leader, reveals one random non-title word) ────────────
+  socket.on('reveal-random-word', (cb?: (res: { error?: string; normalized?: string }) => void) => {
+    const meta = socketToRoom.get(socket.id);
+    if (!meta) return cb?.({ error: 'Not in a room' });
+
+    const room = getRoom(meta.roomCode);
+    if (!room) return cb?.({ error: 'Room not found' });
+    if (room.leaderId !== meta.playerId) return cb?.({ error: 'Not the leader' });
+    if (room.game.status !== 'playing') return cb?.({ error: 'Game not running' });
+
+    const titleNorms = new Set(room.game.titleNormalized);
+    const unrevealed = [...new Set(
+      room.game.tokens
+        .filter((t) => t.type === 'word' && t.normalized && !titleNorms.has(t.normalized) && !room.game.revealedWords.has(t.normalized!))
+        .map((t) => t.normalized!)
+    )];
+
+    if (unrevealed.length === 0) return cb?.({ error: 'No words left to reveal' });
+
+    const word = unrevealed[Math.floor(Math.random() * unrevealed.length)];
+    room.game.revealedWords.add(word);
+
+    const player = room.players.get(meta.playerId);
+    io.to(meta.roomCode).emit('word-revealed', {
+      normalized: word,
+      revealedBy: meta.playerId,
+      revealedByName: player?.name ?? 'Leader',
+      isWin: false,
+      totalRevealed: room.game.revealedWords.size,
+    });
+    systemMessage(meta.roomCode, `🎲 "${word}" revealed randomly!`);
+    broadcastRoom(meta.roomCode);
+    cb?.({ normalized: word });
   });
 
   // ── REVEAL ALL WORDS (leader, reveals entire article + title, ends game) ──────

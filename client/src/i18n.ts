@@ -62,6 +62,7 @@ const T = {
     revealAllBody: 'Reveal the title and the full article for everyone. The game will end.',
     revealDescBtn: '📄 Description only',
     revealAllBtn: '🏁 Title + description',
+    revealRandomBtn: '🎲 Random word',
     confirmCancel: 'Cancel',
     // Generic confirm dialog
     confirmLeaveTitle: 'Leave the room?',
@@ -174,6 +175,7 @@ const T = {
     revealAllBody: 'Révèle le titre et l\'article complet pour tout le monde. La partie se terminera.',
     revealDescBtn: '📄 Description seulement',
     revealAllBtn: '🏁 Titre + description',
+    revealRandomBtn: '🎲 Mot aléatoire',
     confirmCancel: 'Annuler',
     // Generic confirm dialog
     confirmLeaveTitle: 'Quitter la salle ?',
