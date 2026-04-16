@@ -22,7 +22,7 @@
     height: 1.1em;
     margin: 0 1px;
     vertical-align: middle;
-    background-color: var(--word-bg, #334155); /* slate-700 default */
+    background-color: #334155; /* default; overridden by inline backgroundColor when close */
   }
   .word-hidden:hover { filter: brightness(1.3); }
   .word-hidden:active { filter: brightness(1.6); }

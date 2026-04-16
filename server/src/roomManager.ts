@@ -292,6 +292,39 @@ export type SubmitResult =
   | { result: 'not-found';     normalized: string }
   | { result: 'error' };
 
+/** Reveal title positions matching `normalized`.
+ *  Competitive: writes to the player's personal title array.
+ *  Coop: writes to the shared title array.
+ *  Returns true if at least one new position was revealed. */
+function revealMatchingTitlePositions(
+  game: GameState,
+  normalized: string,
+  playerId: string,
+  gameMode: GameMode,
+): boolean {
+  if (gameMode === 'competitive') {
+    const personalTitle = game.playerTitleRevealed.get(playerId) ?? game.titleRevealed.map(() => false);
+    let changed = false;
+    for (let i = 0; i < game.titleNormalized.length; i++) {
+      if (game.titleNormalized[i] === normalized && !game.titleRevealed[i] && !personalTitle[i]) {
+        personalTitle[i] = true;
+        changed = true;
+      }
+    }
+    if (changed) game.playerTitleRevealed.set(playerId, personalTitle);
+    return changed;
+  } else {
+    let changed = false;
+    for (let i = 0; i < game.titleNormalized.length; i++) {
+      if (game.titleNormalized[i] === normalized && !game.titleRevealed[i]) {
+        game.titleRevealed[i] = true;
+        changed = true;
+      }
+    }
+    return changed;
+  }
+}
+
 export function submitWord(code: string, playerId: string, word: string): SubmitResult {
   const room = rooms.get(code);
   if (!room || room.game.status !== 'playing') return { result: 'error' };
@@ -341,28 +374,9 @@ export function submitWord(code: string, playerId: string, word: string): Submit
   const existsInBody = game.tokens.some((t) => t.type === 'word' && t.normalized === normalized);
 
   // Check title words (reveal matching non-target positions)
-  // In competitive: update only this player's personal title reveal
-  // In coop: update the shared titleRevealed
-  let newTitleReveal = false;
-  if (normalized !== game.targetNormalized) {
-    if (room.gameMode === 'competitive') {
-      const personalTitle = game.playerTitleRevealed.get(playerId) ?? game.titleRevealed.map(() => false);
-      for (let i = 0; i < game.titleNormalized.length; i++) {
-        if (game.titleNormalized[i] === normalized && !game.titleRevealed[i] && !personalTitle[i]) {
-          personalTitle[i] = true;
-          newTitleReveal = true;
-        }
-      }
-      if (newTitleReveal) game.playerTitleRevealed.set(playerId, personalTitle);
-    } else {
-      for (let i = 0; i < game.titleNormalized.length; i++) {
-        if (game.titleNormalized[i] === normalized && !game.titleRevealed[i]) {
-          game.titleRevealed[i] = true;
-          newTitleReveal = true;
-        }
-      }
-    }
-  }
+  const newTitleReveal =
+    normalized !== game.targetNormalized &&
+    revealMatchingTitlePositions(game, normalized, playerId, room.gameMode);
 
   if (!existsInBody && !newTitleReveal) return { result: 'not-found', normalized };
 

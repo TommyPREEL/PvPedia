@@ -66,7 +66,7 @@ export default function ArticleDisplay({
                   return (
                     <span
                       key={wi}
-                      className="title-word-hidden-block relative"
+                      className="title-word-hidden-block relative group"
                       style={{
                         width: `${Math.max(len * 1.1, 2)}ch`,
                         backgroundColor: (titleProximityScores?.[wi] ?? 0) > 0.04
@@ -74,7 +74,7 @@ export default function ArticleDisplay({
                           : undefined,
                       }}
                     >
-                      <span className="absolute inset-0 flex items-center justify-center text-slate-500 text-[10px] pointer-events-none">
+                      <span className="absolute inset-0 flex items-center justify-center text-slate-500 text-[10px] pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
                         {len}
                       </span>
                     </span>
@@ -97,11 +97,11 @@ export default function ArticleDisplay({
           return (
             <span
               key={i}
-              className="word-hidden"
+              className="word-hidden group"
               style={{ width: `${Math.max(token.length * 0.58, 0.6)}em` }}
               onClick={onHiddenWordClick}
             >
-              <span className="word-length-label">{token.length}</span>
+              <span className="word-length-label opacity-0 group-hover:opacity-100 transition-opacity">{token.length}</span>
             </span>
           );
         }
@@ -124,15 +124,15 @@ export default function ArticleDisplay({
         const bgColor = hasProximity ? proximityColor(score) : undefined;
 
         const proximityEntry = proximityWordMap[norm];
-        const showPlaceholder = !!proximityEntry && token.length >= 4;
+        const showPlaceholder = !!proximityEntry && token.length >= 3;
 
         return (
           <span
             key={i}
-            className="word-hidden"
+            className="word-hidden group"
             style={{
               width: `${Math.max(token.length * 0.58, 0.6)}em`,
-              ...(bgColor ? { '--word-bg': bgColor } as React.CSSProperties : {}),
+              backgroundColor: bgColor,
             }}
             onClick={onHiddenWordClick}
           >
@@ -144,7 +144,7 @@ export default function ArticleDisplay({
                 {proximityEntry.word}
               </span>
             ) : (
-              <span className="word-length-label">{token.length}</span>
+              <span className="word-length-label opacity-0 group-hover:opacity-100 transition-opacity">{token.length}</span>
             )}
           </span>
         );
