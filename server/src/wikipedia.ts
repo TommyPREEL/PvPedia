@@ -88,13 +88,17 @@ function validateArticle(
   title: string, extract: string, type: string,
 ): boolean {
   if (type !== 'standard') return false;
-  const wc = countWords(extract);
-  if (!extract || wc < 150 || wc > 600) return false;
+  if (!extract) return false;
   const wordCount = title.trim().split(/\s+/).length;
   if (wordCount > 3) return false;
   const targetNorm = normalizeWord(title.split(/\s+/)[0]);
   const tokens = tokenizeText(extract);
   return tokens.some((t) => t.type === 'word' && t.normalized === targetNorm);
+}
+
+function hasEnoughWords(extract: string, min = 150, max = 600): boolean {
+  const wc = countWords(extract);
+  return wc >= min && wc <= max;
 }
 
 /**
@@ -167,6 +171,7 @@ export async function fetchRandomArticle(
           if (!validateArticle(title, extract, type)) continue;
           const fullExtract = await fetchFullExtract(title, language, extract);
           if (!validateArticle(title, fullExtract, type)) continue;
+          if (!hasEnoughWords(fullExtract)) continue;
           return { title, extract: fullExtract, url: buildArticleUrl(title, language) };
         } catch {
           await new Promise((r) => setTimeout(r, 200));
@@ -177,8 +182,6 @@ export async function fetchRandomArticle(
   }
 
   // All difficulties get the same amount of text
-  const minWordCount = 150;
-  const maxWordCount = 600;
 
   for (let attempt = 0; attempt < 25; attempt++) {
     try {
@@ -190,7 +193,7 @@ export async function fetchRandomArticle(
       const { title, extract, type } = res.data;
 
       if (type !== 'standard') continue;
-      if (!extract || countWords(extract) < minWordCount || countWords(extract) > maxWordCount) continue;
+      if (!extract) continue;
 
       const wordCount = title.trim().split(/\s+/).length;
       if (wordCount > 3) continue;
@@ -203,8 +206,7 @@ export async function fetchRandomArticle(
       if (!appearsInText) continue;
 
       const fullExtract = await fetchFullExtract(title, language, extract);
-      const fullWc = countWords(fullExtract);
-      if (fullWc < minWordCount || fullWc > maxWordCount) continue;
+      if (!hasEnoughWords(fullExtract)) continue;
 
       return { title, extract: fullExtract, url: buildArticleUrl(title, language) };
     } catch {
