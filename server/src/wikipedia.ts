@@ -80,23 +80,9 @@ export function tokenizeText(text: string): Token[] {
   return tokens;
 }
 
-function htmlToPlainParagraphs(html: string): string[] {
-  return html
-    .split(/<\/?p[^>]*>/i)
-    .map((p) =>
-      p
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-        .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
-        .replace(/\s{2,}/g, ' ')
-        .trim()
-    )
-    .filter((p) => p.split(/\s+/).length >= 8); // skip very short fragments
-}
-
 /**
- * Fetch the full article via mobile-sections API and return clean plain text
- * with at least `minWords` words, accumulating whole paragraphs across sections.
+ * Fetch the full intro section (before first heading) via MediaWiki action=query API.
+ * Returns plain text split into paragraphs, accumulated until at least minWords words.
  * Falls back to the summary extract on any error.
  */
 async function fetchLeadExtract(
@@ -106,34 +92,45 @@ async function fetchLeadExtract(
   minWords = 150,
 ): Promise<string> {
   try {
-    const url = `https://${language}.wikipedia.org/api/rest_v1/page/mobile-sections/${encodeURIComponent(title.replace(/ /g, '_'))}`;
+    const url = `https://${language}.wikipedia.org/w/api.php`;
     const res = await axios.get<{
-      lead: { sections: Array<{ text: string }> };
-      remaining?: { sections: Array<{ text: string; line?: string }> };
-    }>(
-      url,
-      { timeout: 10000, headers: { 'User-Agent': 'PvPedia/1.0 (educational game)' } },
-    );
+      query: { pages: Record<string, { extract?: string }> };
+    }>(url, {
+      timeout: 10000,
+      headers: { 'User-Agent': 'PvPedia/1.0 (educational game)' },
+      params: {
+        action: 'query',
+        titles: title,
+        prop: 'extracts',
+        exintro: 1,
+        explaintext: 1,
+        format: 'json',
+        redirects: 1,
+      },
+    });
 
-    const allSections = [
-      ...(res.data?.lead?.sections ?? []),
-      ...(res.data?.remaining?.sections ?? []),
-    ];
+    const pages = res.data?.query?.pages ?? {};
+    const page = Object.values(pages)[0];
+    const fullText = page?.extract?.trim() ?? '';
+    if (!fullText) return fallback;
 
+    // Split on double newlines (paragraph boundaries in plain text)
+    const paragraphs = fullText
+      .split(/\n{2,}/)
+      .map((p) => p.replace(/\n/g, ' ').replace(/\s{2,}/g, ' ').trim())
+      .filter((p) => p.split(/\s+/).length >= 8);
+
+    if (paragraphs.length === 0) return fallback;
+
+    // Accumulate whole paragraphs until we reach minWords
     const result: string[] = [];
     let totalWords = 0;
-
-    for (const section of allSections) {
-      if (!section.text) continue;
-      for (const para of htmlToPlainParagraphs(section.text)) {
-        result.push(para);
-        totalWords += para.split(/\s+/).length;
-        if (totalWords >= minWords) break;
-      }
+    for (const para of paragraphs) {
+      result.push(para);
+      totalWords += para.split(/\s+/).length;
       if (totalWords >= minWords) break;
     }
 
-    if (result.length === 0) return fallback;
     return result.join('\n\n');
   } catch {
     return fallback;
