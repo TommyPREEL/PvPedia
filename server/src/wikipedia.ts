@@ -80,11 +80,16 @@ export function tokenizeText(text: string): Token[] {
   return tokens;
 }
 
+function countWords(text: string): number {
+  return text.trim().split(/\s+/).filter((w) => w.length > 0).length;
+}
+
 function validateArticle(
   title: string, extract: string, type: string,
 ): boolean {
   if (type !== 'standard') return false;
-  if (!extract || extract.length < 200 || extract.length > 12000) return false;
+  const wc = countWords(extract);
+  if (!extract || wc < 150 || wc > 600) return false;
   const wordCount = title.trim().split(/\s+/).length;
   if (wordCount > 3) return false;
   const targetNorm = normalizeWord(title.split(/\s+/)[0]);
@@ -94,14 +99,14 @@ function validateArticle(
 
 /**
  * Fetch the full intro (lead section) of a Wikipedia article via the
- * mobile-sections API, strip HTML tags, and return up to `maxChars` of text.
+ * mobile-sections API, strip HTML tags, and return up to `maxWords` words.
  * Falls back to the summary extract if the sections call fails.
  */
 async function fetchFullExtract(
   title: string,
   language: Language,
   summaryExtract: string,
-  maxChars = 4000,
+  maxWords = 600,
 ): Promise<string> {
   try {
     const url = `https://${language}.wikipedia.org/api/rest_v1/page/mobile-sections/${encodeURIComponent(title.replace(/ /g, '_'))}`;
@@ -124,12 +129,14 @@ async function fetchFullExtract(
       .replace(/\s{2,}/g, ' ')
       .trim();
 
-    if (plain.length < 200) return summaryExtract;
+    if (countWords(plain) < 150) return summaryExtract;
 
-    // Truncate cleanly at a sentence boundary near maxChars
-    if (plain.length <= maxChars) return plain;
-    const cutoff = plain.lastIndexOf('. ', maxChars);
-    return cutoff > 200 ? plain.slice(0, cutoff + 1) : plain.slice(0, maxChars);
+    // Truncate cleanly at a sentence boundary near maxWords
+    const words = plain.split(/\s+/);
+    if (words.length <= maxWords) return plain;
+    const truncated = words.slice(0, maxWords).join(' ');
+    const cutoff = truncated.lastIndexOf('. ');
+    return cutoff > 0 ? truncated.slice(0, cutoff + 1) : truncated;
   } catch {
     return summaryExtract;
   }
@@ -170,8 +177,8 @@ export async function fetchRandomArticle(
   }
 
   // All difficulties get the same amount of text
-  const maxExtract = 12000;
-  const minExtract = 200;
+  const minWordCount = 150;
+  const maxWordCount = 600;
 
   for (let attempt = 0; attempt < 25; attempt++) {
     try {
@@ -183,7 +190,7 @@ export async function fetchRandomArticle(
       const { title, extract, type } = res.data;
 
       if (type !== 'standard') continue;
-      if (!extract || extract.length < minExtract) continue;
+      if (!extract || countWords(extract) < minWordCount || countWords(extract) > maxWordCount) continue;
 
       const wordCount = title.trim().split(/\s+/).length;
       if (wordCount > 3) continue;
@@ -196,7 +203,8 @@ export async function fetchRandomArticle(
       if (!appearsInText) continue;
 
       const fullExtract = await fetchFullExtract(title, language, extract);
-      if (fullExtract.length > maxExtract) continue;
+      const fullWc = countWords(fullExtract);
+      if (fullWc < minWordCount || fullWc > maxWordCount) continue;
 
       return { title, extract: fullExtract, url: buildArticleUrl(title, language) };
     } catch {
