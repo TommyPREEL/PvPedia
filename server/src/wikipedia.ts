@@ -84,33 +84,30 @@ function countWords(text: string): number {
   return text.trim().split(/\s+/).filter((w) => w.length > 0).length;
 }
 
-function validateArticle(
-  title: string, extract: string, type: string,
-): boolean {
-  if (type !== 'standard') return false;
-  if (!extract) return false;
-  const wordCount = title.trim().split(/\s+/).length;
-  if (wordCount > 3) return false;
-  const targetNorm = normalizeWord(title.split(/\s+/)[0]);
-  const tokens = tokenizeText(extract);
-  return tokens.some((t) => t.type === 'word' && t.normalized === targetNorm);
+/** Check if an article's text has a playable number of words (80–600). */
+function hasEnoughWords(extract: string): boolean {
+  const wc = countWords(extract);
+  return wc >= 80 && wc <= 600;
 }
 
-function hasEnoughWords(extract: string, min = 150, max = 600): boolean {
-  const wc = countWords(extract);
-  return wc >= min && wc <= max;
+/** Truncate text to at most maxWords, cutting at the nearest sentence boundary. */
+function truncateToWords(text: string, maxWords = 600): string {
+  const words = text.split(/\s+/);
+  if (words.length <= maxWords) return text;
+  const truncated = words.slice(0, maxWords).join(' ');
+  const cutoff = truncated.lastIndexOf('. ');
+  return cutoff > 0 ? truncated.slice(0, cutoff + 1) : truncated;
 }
 
 /**
- * Fetch the full intro (lead section) of a Wikipedia article via the
- * mobile-sections API, strip HTML tags, and return up to `maxWords` words.
- * Falls back to the summary extract if the sections call fails.
+ * Fetch the full lead section via the mobile-sections API.
+ * Only called when the page/summary text is too short.
+ * Falls back to the summary extract if the API fails.
  */
 async function fetchFullExtract(
   title: string,
   language: Language,
   summaryExtract: string,
-  maxWords = 600,
 ): Promise<string> {
   try {
     const url = `https://${language}.wikipedia.org/api/rest_v1/page/mobile-sections/${encodeURIComponent(title.replace(/ /g, '_'))}`;
@@ -133,16 +130,8 @@ async function fetchFullExtract(
       .replace(/\s{2,}/g, ' ')
       .trim();
 
-    if (countWords(plain) < 10) return summaryExtract;
-
-    // Truncate cleanly at a sentence boundary near maxWords
-    const words = plain.split(/\s+/);
-    if (words.length <= maxWords) return plain;
-    const truncated = words.slice(0, maxWords).join(' ');
-    const cutoff = truncated.lastIndexOf('. ');
-    return cutoff > 0 ? truncated.slice(0, cutoff + 1) : truncated;
-  } catch (err) {
-    console.warn(`[fetchFullExtract] Failed for "${title}": ${(err as Error).message ?? err}`);
+    return plain || summaryExtract;
+  } catch {
     return summaryExtract;
   }
 }
@@ -169,14 +158,17 @@ export async function fetchRandomArticle(
             { timeout: 8000, headers },
           );
           const { title, extract, type } = res.data;
-          if (!validateArticle(title, extract, type)) { console.log(`[easy] skip "${title}": validateArticle failed`); continue; }
-          const fullExtract = await fetchFullExtract(title, language, extract);
-          if (!validateArticle(title, fullExtract, type)) { console.log(`[easy] skip "${title}": validateArticle on fullExtract failed`); continue; }
-          if (!hasEnoughWords(fullExtract)) { console.log(`[easy] skip "${title}": word count ${countWords(fullExtract)} not in [150,600]`); continue; }
-          console.log(`[easy] accepted "${title}" (${countWords(fullExtract)} words)`);
-          return { title, extract: fullExtract, url: buildArticleUrl(title, language) };
-        } catch (err) {
-          console.warn(`[easy] attempt error: ${(err as Error).message ?? err}`);
+          if (type !== 'standard' || !extract) continue;
+          const titleWords = title.trim().split(/\s+/).length;
+          if (titleWords > 3) continue;
+          // Only call mobile-sections if summary is too short
+          const rawText = hasEnoughWords(extract) ? extract : await fetchFullExtract(title, language, extract);
+          const text = truncateToWords(rawText);
+          if (!hasEnoughWords(text)) continue;
+          const targetNorm = normalizeWord(title.split(/\s+/)[0]);
+          if (!tokenizeText(text).some((t) => t.type === 'word' && t.normalized === targetNorm)) continue;
+          return { title, extract: text, url: buildArticleUrl(title, language) };
+        } catch {
           await new Promise((r) => setTimeout(r, 200));
         }
       }
@@ -184,11 +176,7 @@ export async function fetchRandomArticle(
     // If top articles failed, fall through to random
   }
 
-  console.log(`[fetchRandomArticle] lang=${language} difficulty=${difficulty}`);
-
-  // All difficulties get the same amount of text
-
-  for (let attempt = 0; attempt < 50; attempt++) {
+  for (let attempt = 0; attempt < 30; attempt++) {
     try {
       const res = await axios.get<{ title: string; extract: string; type: string }>(
         `${base}/page/random/summary`,
@@ -196,35 +184,28 @@ export async function fetchRandomArticle(
       );
 
       const { title, extract, type } = res.data;
-      console.log(`[attempt ${attempt + 1}] "${title}" type=${type} extractWords=${countWords(extract)}`);
 
-      if (type !== 'standard') { console.log(` → skip: type not standard`); continue; }
-      if (!extract) { console.log(` → skip: no extract`); continue; }
+      if (type !== 'standard' || !extract) continue;
 
-      const wordCount = title.trim().split(/\s+/).length;
-      if (wordCount > 3) { console.log(` → skip: title too long (${wordCount} words)`); continue; }
+      const titleWords = title.trim().split(/\s+/).length;
+      if (titleWords > 3) continue;
 
-      const fullExtract = await fetchFullExtract(title, language, extract);
-      const fullWc = countWords(fullExtract);
-      console.log(` → fullExtract words=${fullWc}`);
-      if (!hasEnoughWords(fullExtract)) { console.log(` → skip: word count ${fullWc} not in [150,600]`); continue; }
+      // Only call mobile-sections if summary is too short
+      const rawText = hasEnoughWords(extract) ? extract : await fetchFullExtract(title, language, extract);
+      const text = truncateToWords(rawText);
+
+      if (!hasEnoughWords(text)) continue;
 
       const targetNorm = normalizeWord(title.split(/\s+/)[0]);
-      const tokens = tokenizeText(fullExtract);
-      const appearsInText = tokens.some(
-        (t) => t.type === 'word' && t.normalized === targetNorm
-      );
-      if (!appearsInText) { console.log(` → skip: "${targetNorm}" not found in full extract`); continue; }
+      if (!tokenizeText(text).some((t) => t.type === 'word' && t.normalized === targetNorm)) continue;
 
-      console.log(` → ACCEPTED "${title}" (${fullWc} words)`);
-      return { title, extract: fullExtract, url: buildArticleUrl(title, language) };
-    } catch (err) {
-      console.warn(`[attempt ${attempt + 1}] error: ${(err as Error).message ?? err}`);
+      return { title, extract: text, url: buildArticleUrl(title, language) };
+    } catch {
       await new Promise((r) => setTimeout(r, 300));
     }
   }
 
-  throw new Error(`Could not fetch a suitable ${language} Wikipedia article after 50 attempts`);
+  throw new Error(`Could not fetch a suitable ${language} Wikipedia article`);
 }
 
 // ---- Proximity (natural NLP — synchronous, no model download) ----
