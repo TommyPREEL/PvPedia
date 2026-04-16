@@ -48,6 +48,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [proximityMap, setProximityMap] = useState<ProximityMap>({});
   const [proximityWordMap, setProximityWordMap] = useState<Record<string, ProximityWordEntry>>({});
+  const [titleProximityScores, setTitleProximityScores] = useState<number[]>([]);
   const [soundMuted, setSoundMuted] = useState(false);
 
   const notifId = useRef(0);
@@ -104,6 +105,7 @@ export default function App() {
           setWordList([]);
           setProximityMap({});
           setProximityWordMap({});
+          setTitleProximityScores([]);
           return 'waiting';
         }
         return prev;
@@ -116,6 +118,7 @@ export default function App() {
       setWordList([]);
       setProximityMap({});
       setProximityWordMap({});
+      setTitleProximityScores([]);
       // Sync UI language to the room's game language
       setUILang(updatedRoom.language as UILang);
     });
@@ -132,6 +135,7 @@ export default function App() {
       if (payload.isWin) {
         notify(`🎉 ${payload.revealedByName} found: "${payload.articleTitle}"!`, 'success');
         setProximityMap({});
+        setTitleProximityScores([]);
         if (payload.revealedBy === playerIdRef.current) sounds.playWin();
       } else {
         // Leader hint reveal — add the word to everyone's word list
@@ -156,7 +160,7 @@ export default function App() {
       }
     });
 
-    socket.on('proximity-update', (payload: { map: ProximityMap; guessWord: string }) => {
+    socket.on('proximity-update', (payload: { map: ProximityMap; guessWord: string; titleProximityScores?: number[] }) => {
       const guessWord = payload.guessWord;
       setProximityMap((prev) => {
         const merged: ProximityMap = { ...prev };
@@ -191,6 +195,16 @@ export default function App() {
             )
           );
         }
+      }
+      // Accumulate title word proximity scores
+      if (payload.titleProximityScores && payload.titleProximityScores.length > 0) {
+        setTitleProximityScores((prev) => {
+          const next = [...prev];
+          payload.titleProximityScores!.forEach((score, i) => {
+            if (score > (next[i] ?? 0)) next[i] = score;
+          });
+          return next;
+        });
       }
     });
 
@@ -237,6 +251,7 @@ export default function App() {
     setWordList([]);
     setProximityMap({});
     setProximityWordMap({});
+    setTitleProximityScores([]);
     setPage('lobby');
   }, []);
 
@@ -267,6 +282,7 @@ export default function App() {
             isLoading={isLoading}
             proximityMap={proximityMap}
             proximityWordMap={proximityWordMap}
+            titleProximityScores={titleProximityScores}
             soundMuted={soundMuted}
             onToggleSound={toggleSound}
             onWordSubmit={handleWordSubmit}

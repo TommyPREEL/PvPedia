@@ -202,22 +202,22 @@ export function getProximityMap(
     // 3. Stem Jaro-Winkler — related but different stems
     if (guessStem.length >= 3 && wordStem.length >= 3 && guessStem !== wordStem) {
       const sJw = JaroWinklerDistance(guessStem, wordStem, {});
-      if (sJw > 0.80) score = Math.max(score, sJw * 0.75);
+      if (sJw > 0.78) score = Math.max(score, sJw * 0.75);
     }
 
     // 4. Raw Jaro-Winkler on normalised forms
     const jw = JaroWinklerDistance(guessNorm, word, {});
-    if (jw > 0.82) score = Math.max(score, jw * 0.88);
+    if (jw > 0.78) score = Math.max(score, jw * 0.88);
 
     // 5. Levenshtein — catches transpositions and 1-2 char differences
     const maxLen = Math.max(guessNorm.length, word.length);
     if (maxLen >= 3) {
       const ed = LevenshteinDistance(guessNorm, word, { insertion_cost: 1, deletion_cost: 1, substitution_cost: 1 });
       const ratio = 1 - ed / maxLen;
-      if (ratio >= 0.55) score = Math.max(score, ratio * 0.85);
+      if (ratio >= 0.50) score = Math.max(score, ratio * 0.85);
     }
 
-    if (score >= 0.12) result[word] = Math.min(1, score);
+    if (score >= 0.09) result[word] = Math.min(1, score);
   }
 
   return result;

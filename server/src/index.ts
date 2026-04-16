@@ -24,6 +24,27 @@ const socketToRoom = new Map<string, { roomCode: string; playerId: string }>();
 
 // ---- Helpers ----
 
+/** Compute body + title proximity and emit to the given socket(s). */
+function emitProximity(
+  emitFn: (event: string, data: unknown) => void,
+  guessNorm: string,
+  roomCode: string,
+) {
+  const room = getRoom(roomCode);
+  if (!room) return;
+  try {
+    const articleWords = Array.from(getArticleWordSet(roomCode));
+    const bodyMap = getProximityMap(guessNorm, articleWords, room.language);
+    const titleMap = getProximityMap(guessNorm, room.game.titleNormalized, room.language);
+    const titleProximityScores = room.game.titleNormalized.map((n) => titleMap[n] ?? 0);
+    if (Object.keys(bodyMap).length > 0 || titleProximityScores.some((s) => s > 0)) {
+      emitFn('proximity-update', { map: bodyMap, guessWord: guessNorm, titleProximityScores });
+    }
+  } catch (e) {
+    console.error('[proximity] failed:', e);
+  }
+}
+
 function broadcastRoom(roomCode: string) {
   const room = getRoom(roomCode);
   if (!room) return;
@@ -332,6 +353,8 @@ io.on('connection', (socket: Socket) => {
         const medal = result.rank <= 3 ? medals[result.rank - 1] : `#${result.rank}`;
         systemMessage(meta.roomCode, `${medal} ${player.name} found the word! (${player.score.wordsSubmitted} attempts)`);
         broadcastRoom(meta.roomCode);
+        // Proximity hints for words close to the winning word
+        emitProximity((e, d) => socket.emit(e, d), result.normalized, meta.roomCode);
         break;
       }
       case 'revealed': {
@@ -354,27 +377,25 @@ io.on('connection', (socket: Socket) => {
           });
         }
         broadcastRoom(meta.roomCode);
-        // Show proximity hints for related article words (morphological/orthographic closeness)
-        const revealedWords = Array.from(getArticleWordSet(meta.roomCode));
-        const proximityMap = getProximityMap(result.normalized, revealedWords, room.language);
-        if (Object.keys(proximityMap).length > 0) {
-          socket.emit('proximity-update', { map: proximityMap, guessWord: result.normalized });
+        // Proximity hints for words morphologically close to the guessed word
+        if (room.gameMode === 'competitive') {
+          emitProximity((e, d) => socket.emit(e, d), result.normalized, meta.roomCode);
+        } else {
+          emitProximity((e, d) => io.to(meta.roomCode).emit(e, d), result.normalized, meta.roomCode);
         }
         break;
       }
       case 'not-found': {
         socket.emit('word-feedback', { result: 'not-found', word: word.trim() });
         broadcastRoom(meta.roomCode);
-        // Show proximity hints so the player knows how close they were
-        const articleWords = Array.from(getArticleWordSet(meta.roomCode));
-        const pMap = getProximityMap(result.normalized, articleWords, room.language);
-        if (Object.keys(pMap).length > 0) {
-          socket.emit('proximity-update', { map: pMap, guessWord: result.normalized });
-        }
+        // Proximity hints: how warm is the miss relative to actual article words?
+        emitProximity((e, d) => socket.emit(e, d), result.normalized, meta.roomCode);
         break;
       }
       case 'already-known': {
         socket.emit('word-feedback', { result: 'already-known', word: word.trim() });
+        // Still show proximity so the player can see warm/cold for related words
+        emitProximity((e, d) => socket.emit(e, d), result.normalized, meta.roomCode);
         break;
       }
       default:

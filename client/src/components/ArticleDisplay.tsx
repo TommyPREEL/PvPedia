@@ -10,6 +10,7 @@ interface Props {
   titleRevealed: (string | null)[];
   proximityMap: ProximityMap;
   proximityWordMap: Record<string, ProximityWordEntry>;
+  titleProximityScores: number[];
   onHiddenWordClick: () => void;
 }
 
@@ -18,7 +19,7 @@ function normalizeForTitle(s: string): string {
 }
 
 export default function ArticleDisplay({
-  tokens, revealedWords, articleTitle, titleWordLengths, titleRevealed, proximityMap, proximityWordMap, onHiddenWordClick,
+  tokens, revealedWords, articleTitle, titleWordLengths, titleRevealed, proximityMap, proximityWordMap, titleProximityScores, onHiddenWordClick,
 }: Props) {
   const { t } = useI18n();
   const revealedSet = new Set(revealedWords);
@@ -66,7 +67,12 @@ export default function ArticleDisplay({
                     <span
                       key={wi}
                       className="title-word-hidden-block relative"
-                      style={{ width: `${Math.max(len * 1.1, 2)}ch` }}
+                      style={{
+                        width: `${Math.max(len * 1.1, 2)}ch`,
+                        backgroundColor: (titleProximityScores?.[wi] ?? 0) > 0.04
+                          ? proximityColor(titleProximityScores[wi])
+                          : undefined,
+                      }}
                     >
                       <span className="absolute inset-0 flex items-center justify-center text-slate-500 text-[10px] pointer-events-none">
                         {len}
