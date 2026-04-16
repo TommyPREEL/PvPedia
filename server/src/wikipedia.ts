@@ -80,6 +80,57 @@ export function tokenizeText(text: string): Token[] {
   return tokens;
 }
 
+/**
+ * Fetch the lead section via mobile-sections API and return clean plain text,
+ * trimmed to ~150-200 words while keeping whole paragraphs.
+ * Falls back to the summary extract on any error.
+ */
+async function fetchLeadExtract(
+  title: string,
+  language: Language,
+  fallback: string,
+  targetWords = 175,
+): Promise<string> {
+  try {
+    const url = `https://${language}.wikipedia.org/api/rest_v1/page/mobile-sections/${encodeURIComponent(title.replace(/ /g, '_'))}`;
+    const res = await axios.get<{ lead: { sections: Array<{ text: string }> } }>(
+      url,
+      { timeout: 10000, headers: { 'User-Agent': 'PvPedia/1.0 (educational game)' } },
+    );
+    const leadHtml: string = res.data?.lead?.sections?.[0]?.text ?? '';
+    if (!leadHtml) return fallback;
+
+    // Split on paragraph tags, strip HTML, decode entities from each paragraph
+    const paragraphs = leadHtml
+      .split(/<\/?p[^>]*>/i)
+      .map((p) =>
+        p
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
+          .replace(/\s{2,}/g, ' ')
+          .trim()
+      )
+      .filter((p) => p.length > 30); // skip very short fragments
+
+    if (paragraphs.length === 0) return fallback;
+
+    // Accumulate whole paragraphs until we reach targetWords
+    const result: string[] = [];
+    let totalWords = 0;
+    for (const para of paragraphs) {
+      const wc = para.split(/\s+/).length;
+      result.push(para);
+      totalWords += wc;
+      if (totalWords >= targetWords) break;
+    }
+
+    return result.join('\n\n');
+  } catch {
+    return fallback;
+  }
+}
+
 export async function fetchRandomArticle(
   language: Language,
   difficulty: Difficulty = 'medium',
@@ -105,9 +156,9 @@ export async function fetchRandomArticle(
             { timeout: 8000, headers },
           );
           const { title, extract, type } = res.data;
-          if (isValid(title, extract, type)) {
-            return { title, extract, url: buildArticleUrl(title, language) };
-          }
+          if (!isValid(title, extract, type)) continue;
+          const fullExtract = await fetchLeadExtract(title, language, extract);
+          return { title, extract: fullExtract, url: buildArticleUrl(title, language) };
         } catch (err: unknown) {
           const status = (err as { response?: { status?: number } })?.response?.status;
           if (status === 429) await delay(2000);
@@ -124,9 +175,9 @@ export async function fetchRandomArticle(
         { timeout: 8000, headers },
       );
       const { title, extract, type } = res.data;
-      if (isValid(title, extract, type)) {
-        return { title, extract, url: buildArticleUrl(title, language) };
-      }
+      if (!isValid(title, extract, type)) continue;
+      const fullExtract = await fetchLeadExtract(title, language, extract);
+      return { title, extract: fullExtract, url: buildArticleUrl(title, language) };
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status;
       await delay(status === 429 ? 3000 : 500);
