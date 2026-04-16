@@ -81,8 +81,8 @@ export function tokenizeText(text: string): Token[] {
 }
 
 /**
- * Fetch the full intro section (before first heading) via MediaWiki action=query API.
- * Returns plain text split into paragraphs, accumulated until at least minWords words.
+ * Fetch plain text from MediaWiki action=query API (full article, not just intro).
+ * Accumulates whole paragraphs until at least minWords words, skipping section headings.
  * Falls back to the summary extract on any error.
  */
 async function fetchLeadExtract(
@@ -102,7 +102,6 @@ async function fetchLeadExtract(
         action: 'query',
         titles: title,
         prop: 'extracts',
-        exintro: 1,
         explaintext: 1,
         format: 'json',
         redirects: 1,
@@ -114,15 +113,14 @@ async function fetchLeadExtract(
     const fullText = page?.extract?.trim() ?? '';
     if (!fullText) return fallback;
 
-    // Split on double newlines (paragraph boundaries in plain text)
+    // Split on double newlines, filter out section headings (== ... ==) and short lines
     const paragraphs = fullText
       .split(/\n{2,}/)
       .map((p) => p.replace(/\n/g, ' ').replace(/\s{2,}/g, ' ').trim())
-      .filter((p) => p.split(/\s+/).length >= 8);
+      .filter((p) => !/^={1,4}[^=]+=/.test(p) && p.split(/\s+/).length >= 8);
 
     if (paragraphs.length === 0) return fallback;
 
-    // Accumulate whole paragraphs until we reach minWords
     const result: string[] = [];
     let totalWords = 0;
     for (const para of paragraphs) {
