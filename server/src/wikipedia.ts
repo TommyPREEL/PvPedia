@@ -80,62 +80,6 @@ export function tokenizeText(text: string): Token[] {
   return tokens;
 }
 
-function countWords(text: string): number {
-  return text.trim().split(/\s+/).filter((w) => w.length > 0).length;
-}
-
-/** Check if an article's text has a playable number of words (80–600). */
-function hasEnoughWords(extract: string): boolean {
-  const wc = countWords(extract);
-  return wc >= 80 && wc <= 600;
-}
-
-/** Truncate text to at most maxWords, cutting at the nearest sentence boundary. */
-function truncateToWords(text: string, maxWords = 600): string {
-  const words = text.split(/\s+/);
-  if (words.length <= maxWords) return text;
-  const truncated = words.slice(0, maxWords).join(' ');
-  const cutoff = truncated.lastIndexOf('. ');
-  return cutoff > 0 ? truncated.slice(0, cutoff + 1) : truncated;
-}
-
-/**
- * Fetch the full lead section via the mobile-sections API.
- * Only called when the page/summary text is too short.
- * Falls back to the summary extract if the API fails.
- */
-async function fetchFullExtract(
-  title: string,
-  language: Language,
-  summaryExtract: string,
-): Promise<string> {
-  try {
-    const url = `https://${language}.wikipedia.org/api/rest_v1/page/mobile-sections/${encodeURIComponent(title.replace(/ /g, '_'))}`;
-    const res = await axios.get<{ lead: { sections: Array<{ text: string }> } }>(
-      url,
-      { timeout: 10000, headers: { 'User-Agent': 'PvPedia/1.0 (educational game)' } },
-    );
-    const leadText: string = res.data?.lead?.sections?.[0]?.text ?? '';
-    if (!leadText) return summaryExtract;
-
-    // Strip HTML tags and decode common entities
-    const plain = leadText
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .replace(/&nbsp;/g, ' ')
-      .replace(/\s{2,}/g, ' ')
-      .trim();
-
-    return plain || summaryExtract;
-  } catch {
-    return summaryExtract;
-  }
-}
-
 export async function fetchRandomArticle(
   language: Language,
   difficulty: Difficulty = 'medium',
@@ -161,13 +105,9 @@ export async function fetchRandomArticle(
           if (type !== 'standard' || !extract) continue;
           const titleWords = title.trim().split(/\s+/).length;
           if (titleWords > 3) continue;
-          // Only call mobile-sections if summary is too short
-          const rawText = hasEnoughWords(extract) ? extract : await fetchFullExtract(title, language, extract);
-          const text = truncateToWords(rawText);
-          if (!hasEnoughWords(text)) continue;
           const targetNorm = normalizeWord(title.split(/\s+/)[0]);
-          if (!tokenizeText(text).some((t) => t.type === 'word' && t.normalized === targetNorm)) continue;
-          return { title, extract: text, url: buildArticleUrl(title, language) };
+          if (!tokenizeText(extract).some((t) => t.type === 'word' && t.normalized === targetNorm)) continue;
+          return { title, extract, url: buildArticleUrl(title, language) };
         } catch {
           await new Promise((r) => setTimeout(r, 200));
         }
@@ -190,16 +130,10 @@ export async function fetchRandomArticle(
       const titleWords = title.trim().split(/\s+/).length;
       if (titleWords > 3) continue;
 
-      // Only call mobile-sections if summary is too short
-      const rawText = hasEnoughWords(extract) ? extract : await fetchFullExtract(title, language, extract);
-      const text = truncateToWords(rawText);
-
-      if (!hasEnoughWords(text)) continue;
-
       const targetNorm = normalizeWord(title.split(/\s+/)[0]);
-      if (!tokenizeText(text).some((t) => t.type === 'word' && t.normalized === targetNorm)) continue;
+      if (!tokenizeText(extract).some((t) => t.type === 'word' && t.normalized === targetNorm)) continue;
 
-      return { title, extract: text, url: buildArticleUrl(title, language) };
+      return { title, extract, url: buildArticleUrl(title, language) };
     } catch {
       await new Promise((r) => setTimeout(r, 300));
     }
