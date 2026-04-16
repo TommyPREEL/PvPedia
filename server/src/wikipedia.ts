@@ -86,6 +86,10 @@ export async function fetchRandomArticle(
 ): Promise<WikiSummary> {
   const base = `https://${language}.wikipedia.org/api/rest_v1`;
   const headers = { 'User-Agent': 'PvPedia/1.0 (educational game)' };
+  const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  const isValid = (title: string, extract: string, type: string) =>
+    type === 'standard' && !!extract && title.trim().split(/\s+/).length <= 3;
 
   // Easy mode: pick from top-viewed articles
   if (difficulty === 'easy') {
@@ -94,48 +98,38 @@ export async function fetchRandomArticle(
 
     if (topArticles.length > 0) {
       const shuffled = [...topArticles].sort(() => Math.random() - 0.5);
-      for (let attempt = 0; attempt < Math.min(shuffled.length, 30); attempt++) {
+      for (const randomTitle of shuffled.slice(0, 20)) {
         try {
-          const randomTitle = shuffled[attempt];
           const res = await axios.get<{ title: string; extract: string; type: string }>(
             `${base}/page/summary/${encodeURIComponent(randomTitle)}`,
             { timeout: 8000, headers },
           );
           const { title, extract, type } = res.data;
-          if (type !== 'standard' || !extract) continue;
-          const titleWords = title.trim().split(/\s+/).length;
-          if (titleWords > 3) continue;
-          const targetNorm = normalizeWord(title.split(/\s+/)[0]);
-          if (!tokenizeText(extract).some((t) => t.type === 'word' && t.normalized === targetNorm)) continue;
-          return { title, extract, url: buildArticleUrl(title, language) };
-        } catch {
-          await new Promise((r) => setTimeout(r, 200));
+          if (isValid(title, extract, type)) {
+            return { title, extract, url: buildArticleUrl(title, language) };
+          }
+        } catch (err: unknown) {
+          const status = (err as { response?: { status?: number } })?.response?.status;
+          if (status === 429) await delay(2000);
         }
       }
     }
-    // If top articles failed, fall through to random
+    // fallthrough to random
   }
 
-  for (let attempt = 0; attempt < 30; attempt++) {
+  for (let attempt = 0; attempt < 10; attempt++) {
     try {
       const res = await axios.get<{ title: string; extract: string; type: string }>(
         `${base}/page/random/summary`,
         { timeout: 8000, headers },
       );
-
       const { title, extract, type } = res.data;
-
-      if (type !== 'standard' || !extract) continue;
-
-      const titleWords = title.trim().split(/\s+/).length;
-      if (titleWords > 3) continue;
-
-      const targetNorm = normalizeWord(title.split(/\s+/)[0]);
-      if (!tokenizeText(extract).some((t) => t.type === 'word' && t.normalized === targetNorm)) continue;
-
-      return { title, extract, url: buildArticleUrl(title, language) };
-    } catch {
-      await new Promise((r) => setTimeout(r, 300));
+      if (isValid(title, extract, type)) {
+        return { title, extract, url: buildArticleUrl(title, language) };
+      }
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      await delay(status === 429 ? 3000 : 500);
     }
   }
 
