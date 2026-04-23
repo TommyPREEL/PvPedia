@@ -30,6 +30,13 @@
   /* Revealed word */
   .word-revealed { @apply text-slate-100 font-medium; }
 
+  /* Newly revealed word — green flash that fades out */
+  .word-newly-revealed {
+    border-radius: 3px;
+    padding: 0 2px;
+    animation: greenFlash 2s ease-out forwards;
+  }
+
   /* Target word (highlighted after win) */
   .word-target {
     @apply text-yellow-300 font-bold underline decoration-yellow-400/60;
@@ -128,6 +135,12 @@
 @keyframes slideInRight {
   from { opacity: 0; transform: translateX(40px); }
   to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ─── Green flash (word newly revealed) ────────────────────────── */
+@keyframes greenFlash {
+  0%   { background-color: rgba(34, 197, 94, 0.45); }
+  100% { background-color: transparent; }
 }
 
 /* ─── Shake animation (word input miss) ────────────────────────── */

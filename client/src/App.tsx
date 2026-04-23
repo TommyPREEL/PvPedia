@@ -56,6 +56,7 @@ export default function App() {
   const [titleProximityScores, setTitleProximityScores] = useState<number[]>([]);
   const [titleProximityWords, setTitleProximityWords] = useState<(string | null)[]>([]);
   const [soundMuted, setSoundMuted] = useState(false);
+  const [recentlyRevealedWords, setRecentlyRevealedWords] = useState<Set<string>>(new Set());
 
   const notifId = useRef(0);
   const closeWordsRef = useRef<Set<string>>(new Set());
@@ -119,6 +120,7 @@ export default function App() {
           setProximityWordMap({});
           setTitleProximityScores([]);
           setTitleProximityWords([]);
+          setRecentlyRevealedWords(new Set());
           return 'waiting';
         }
         return prev;
@@ -133,6 +135,7 @@ export default function App() {
       setProximityWordMap({});
       setTitleProximityScores([]);
       setTitleProximityWords([]);
+      setRecentlyRevealedWords(new Set());
       closeWordsRef.current.clear();
       // Sync UI language to the room's game language
       setUILang(updatedRoom.language as UILang);
@@ -156,6 +159,19 @@ export default function App() {
       } else {
         // Leader hint reveal — add the word to everyone's word list
         trackWord(payload.normalized, 'found');
+        // Flash green highlight for the newly revealed word
+        setRecentlyRevealedWords((prev) => {
+          const next = new Set(prev);
+          next.add(payload.normalized);
+          return next;
+        });
+        setTimeout(() => {
+          setRecentlyRevealedWords((prev) => {
+            const next = new Set(prev);
+            next.delete(payload.normalized);
+            return next;
+          });
+        }, 2000);
         if (payload.revealedBy === playerIdRef.current) {
           notify(`✅ "${payload.normalized}" revealed!`, 'info');
           sounds.playRevealed();
@@ -282,6 +298,7 @@ export default function App() {
     setProximityWordMap({});
     setTitleProximityScores([]);
     setTitleProximityWords([]);
+    setRecentlyRevealedWords(new Set());
     closeWordsRef.current.clear();
     setPage('lobby');
   }, []);
@@ -315,6 +332,7 @@ export default function App() {
             proximityWordMap={proximityWordMap}
             titleProximityScores={titleProximityScores}
             titleProximityWords={titleProximityWords}
+            recentlyRevealedWords={recentlyRevealedWords}
             soundMuted={soundMuted}
             onToggleSound={toggleSound}
             onWordSubmit={handleWordSubmit}
