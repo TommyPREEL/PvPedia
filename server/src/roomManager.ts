@@ -457,6 +457,47 @@ export function setRevealStopwords(code: string, playerId: string, value: boolea
   return room;
 }
 
+/**
+ * Reveal additional article words by morphological proximity.
+ * Called after a word submission to auto-reveal morphological variants
+ * (plurals, conjugations, gender forms…) without counting as extra submissions.
+ * Title words are never auto-revealed this way.
+ * Returns the list of newly revealed normalized words.
+ */
+export function revealProximityWords(
+  code: string,
+  playerId: string,
+  candidates: string[],
+): string[] {
+  const room = rooms.get(code);
+  if (!room || room.game.status !== 'playing') return [];
+
+  const { game } = room;
+  const titleNormSet = new Set(game.titleNormalized);
+  const newly: string[] = [];
+
+  for (const normalized of candidates) {
+    // Never auto-reveal title words (includes the winning target word)
+    if (titleNormSet.has(normalized)) continue;
+
+    if (room.gameMode === 'competitive') {
+      const personalSet = game.playerRevealedWords.get(playerId) ?? new Set<string>();
+      if (!personalSet.has(normalized) && !game.revealedWords.has(normalized)) {
+        personalSet.add(normalized);
+        game.playerRevealedWords.set(playerId, personalSet);
+        newly.push(normalized);
+      }
+    } else {
+      if (!game.revealedWords.has(normalized)) {
+        game.revealedWords.add(normalized);
+        newly.push(normalized);
+      }
+    }
+  }
+
+  return newly;
+}
+
 /** Build the set of all unique normalized words in the article (for proximity queries). */
 export function getArticleWordSet(code: string): Set<string> {
   const room = rooms.get(code);

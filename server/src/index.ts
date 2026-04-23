@@ -7,7 +7,7 @@ import {
   createRoom, getRoom, joinRoom, removePlayer, setPlayerReady, setLanguage, setGameMode,
   addChatMessage, submitWord, startGame, serializeRoom, issueSession,
   getSession, deleteSession, startDisconnectGrace, cancelGrace, getArticleWordSet, setDifficulty, setThemes,
-  setRevealStopwords,
+  setRevealStopwords, revealProximityWords,
 } from './roomManager';
 import { fetchRandomArticle, tokenizeText, getProximityMap } from './wikipedia';
 import { Language, Difficulty, Theme } from './types';
@@ -383,6 +383,45 @@ io.on('connection', (socket: Socket) => {
 
     const result = submitWord(meta.roomCode, meta.playerId, word.trim());
 
+    // ── Proximity auto-reveal ─────────────────────────────────────────────────
+    // After each submission, find article words that are morphologically close
+    // (plurals, conjugations, gender variants…) and reveal them automatically.
+    // Threshold 0.75 catches same-stem forms (score 0.80) and close JW matches.
+    // Title words are never auto-revealed this way.
+    const AUTO_REVEAL_THRESHOLD = 0.75;
+    const proxRevealed: string[] = [];
+    // 'error' is the only SubmitResult variant without a 'normalized' field
+    const guessNorm = result.result !== 'error' ? result.normalized : '';
+    if (result.result !== 'win' && result.result !== 'error' && room.game.status === 'playing') {
+      const articleWords = Array.from(getArticleWordSet(meta.roomCode));
+      const proximityScores = getProximityMap(guessNorm, articleWords, room.language);
+      const candidates = Object.entries(proximityScores)
+        .filter(([, s]) => s >= AUTO_REVEAL_THRESHOLD)
+        .map(([w]) => w);
+      proxRevealed.push(...revealProximityWords(meta.roomCode, meta.playerId, candidates));
+    }
+
+    // Helper: emit word-revealed for a proximity-revealed word respecting game mode
+    const emitProxRevealed = (normalized: string) => {
+      if (room.gameMode === 'competitive') {
+        socket.emit('word-revealed', {
+          normalized,
+          revealedBy: meta.playerId,
+          revealedByName: player.name,
+          isWin: false,
+          totalRevealed: 0,
+        });
+      } else {
+        io.to(meta.roomCode).emit('word-revealed', {
+          normalized,
+          revealedBy: meta.playerId,
+          revealedByName: player.name,
+          isWin: false,
+          totalRevealed: room.game.revealedWords.size,
+        });
+      }
+    };
+
     switch (result.result) {
       case 'win': {
         io.to(meta.roomCode).emit('word-revealed', {
@@ -428,6 +467,8 @@ io.on('connection', (socket: Socket) => {
             totalRevealed: room.game.revealedWords.size,
           });
         }
+        // Also emit for each proximity-revealed morphological variant
+        for (const w of proxRevealed) emitProxRevealed(w);
         broadcastRoom(meta.roomCode);
         // Proximity hints for words morphologically close to the guessed word
         if (room.gameMode === 'competitive') {
@@ -438,23 +479,37 @@ io.on('connection', (socket: Socket) => {
         break;
       }
       case 'not-found': {
-        socket.emit('word-feedback', { result: 'not-found', word: word.trim() });
+        if (proxRevealed.length > 0) {
+          // The guessed word isn't in the article but morphological variants were found.
+          // Emit word-revealed for each variant without the red "not-found" feedback.
+          for (const w of proxRevealed) emitProxRevealed(w);
+        } else {
+          socket.emit('word-feedback', { result: 'not-found', word: word.trim() });
+        }
         broadcastRoom(meta.roomCode);
         // Proximity hints: how warm is the miss relative to actual article words?
-        emitProximity((e, d) => socket.emit(e, d), result.normalized, meta.roomCode);
+        emitProximity((e, d) => socket.emit(e, d), guessNorm, meta.roomCode);
         break;
       }
       case 'already-known': {
+        // Emit proximity-revealed words (new variants not yet known)
+        for (const w of proxRevealed) emitProxRevealed(w);
         socket.emit('word-feedback', { result: 'already-known', word: word.trim() });
+        if (proxRevealed.length > 0) broadcastRoom(meta.roomCode);
         // Still show proximity so the player can see warm/cold for related words
-        emitProximity((e, d) => socket.emit(e, d), result.normalized, meta.roomCode);
+        emitProximity((e, d) => socket.emit(e, d), guessNorm, meta.roomCode);
         break;
       }
       default:
         break;
     }
 
-    cb?.({ result: result.result, normalized: 'normalized' in result ? result.normalized : undefined });
+    // If the word itself wasn't in the article but proximity variants were revealed,
+    // report 'revealed' so the client shows a green flash instead of a red shake.
+    const effectiveResult = result.result === 'not-found' && proxRevealed.length > 0
+      ? 'revealed'
+      : result.result;
+    cb?.({ result: effectiveResult, normalized: guessNorm || undefined });
   });
 
   // ── CHAT MESSAGE ─────────────────────────────────────────────────────────────
