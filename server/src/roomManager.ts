@@ -4,6 +4,7 @@ import {
   ChatMessage, GameState, Token, SessionData,
 } from './types';
 import { normalizeWord } from './wikipedia';
+import { isStopword } from './stopwords';
 
 // ---- Storage ----
 const rooms = new Map<string, Room>();
@@ -89,7 +90,8 @@ function serializeTokensFromSet(game: GameState, revealedSet: Set<string>): Clie
       return { type: 'other', value: token.value, length: token.value.length, revealed: true };
     }
     if (token.type === 'number') {
-      return { type: 'number', value: finished ? token.value : '', length: token.value.length, revealed: finished };
+      const revealed = finished || revealedSet.has(token.value);
+      return { type: 'number', value: revealed ? token.value : '', length: token.value.length, revealed };
     }
     const norm = token.normalized ?? '';
     const revealed = revealedSet.has(norm);
@@ -150,6 +152,7 @@ export function serializeRoom(room: Room, playerId?: string): ClientRoom {
     gameMode: room.gameMode,
     difficulty: room.difficulty,
     themes: room.themes,
+    revealStopwords: room.revealStopwords,
     game: clientGame,
   };
 }
@@ -168,6 +171,7 @@ export function createRoom(playerName: string, playerId: string): Room {
     gameMode: 'competitive',
     difficulty: 'medium',
     themes: [],
+    revealStopwords: false,
     game: {
       status: 'waiting', articleTitle: '', targetNormalized: '',
       tokens: [], revealedWords: new Set(), playerRevealedWords: new Map(), winnerOrder: [],
@@ -280,6 +284,17 @@ export function startGame(code: string, tokens: Token[], articleTitle: string, a
     articleUrl,
   };
 
+  // Pre-reveal stopwords if the option is enabled
+  if (room.revealStopwords) {
+    const lang = room.language;
+    const titleNormSet = new Set(titleNormalized);
+    for (const token of tokens) {
+      if (token.type === 'word' && token.normalized && !titleNormSet.has(token.normalized) && isStopword(token.normalized, lang)) {
+        room.game.revealedWords.add(token.normalized);
+      }
+    }
+  }
+
   for (const player of room.players.values()) {
     player.score = { wordsSubmitted: 0, wordsRevealedFirst: 0, hasWon: false };
     if (!player.isLeader) player.isReady = false;
@@ -334,14 +349,16 @@ export function submitWord(code: string, playerId: string, word: string): Submit
   const player = room.players.get(playerId);
   if (!player) return { result: 'error' };
 
-  const normalized = normalizeWord(word);
+  // Numbers are normalized to their raw digit string; words use normalizeWord
+  const isNumber = /^\d+$/.test(word);
+  const normalized = isNumber ? word : normalizeWord(word);
   if (!normalized) return { result: 'not-found', normalized: word };
 
   player.score.wordsSubmitted++;
   const { game } = room;
 
-  // Win condition
-  if (normalized === game.targetNormalized) {
+  // Win condition (only applies to words, not numbers)
+  if (!isNumber && normalized === game.targetNormalized) {
     if (player.score.hasWon) return { result: 'already-known', normalized };
 
     game.revealedWords.add(normalized);
@@ -372,11 +389,15 @@ export function submitWord(code: string, playerId: string, word: string): Submit
     return { result: 'win', normalized, articleTitle: game.articleTitle, rank };
   }
 
-  // Check article body
-  const existsInBody = game.tokens.some((t) => t.type === 'word' && t.normalized === normalized);
+  // Check article body (words and numbers)
+  const existsInBody = game.tokens.some(
+    (t) => (t.type === 'word' && t.normalized === normalized) ||
+            (t.type === 'number' && t.value === normalized),
+  );
 
-  // Check title words (reveal matching non-target positions)
+  // Check title words (reveal matching non-target positions) — only for word guesses
   const newTitleReveal =
+    !isNumber &&
     normalized !== game.targetNormalized &&
     revealMatchingTitlePositions(game, normalized, playerId, room.gameMode);
 
@@ -425,6 +446,14 @@ export function setThemes(code: string, playerId: string, themes: Theme[]): Room
   if (room.game.status !== 'waiting') return null;
   // Validate and deduplicate
   room.themes = [...new Set(themes)].filter((t) => ALL_THEMES.includes(t));
+  return room;
+}
+
+export function setRevealStopwords(code: string, playerId: string, value: boolean): Room | null {
+  const room = rooms.get(code);
+  if (!room || room.leaderId !== playerId) return null;
+  if (room.game.status !== 'waiting') return null;
+  room.revealStopwords = value;
   return room;
 }
 

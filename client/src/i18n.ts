@@ -128,6 +128,9 @@ const T = {
     theme_sports: '⚽ Sports',
     theme_nature: '🌿 Nature',
     theme_technology: '💻 Technology',
+    // Stopwords
+    revealStopwords: 'Pre-fill stopwords',
+    revealStopwordsDesc: 'Automatically reveal common words (the, a, of…) at game start',
   },
   fr: {
     subtitle: 'compétitif',
@@ -242,6 +245,9 @@ const T = {
     theme_sports: '⚽ Sports',
     theme_nature: '🌿 Nature',
     theme_technology: '💻 Technologie',
+    // Stopwords
+    revealStopwords: 'Pré-remplir les mots vides',
+    revealStopwordsDesc: 'Révéler automatiquement les mots communs (le, la, de, un…) au début de la partie',
   },
 } as const;
 

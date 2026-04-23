@@ -58,6 +58,8 @@ export interface Room {
   difficulty: Difficulty;
   /** Empty = no filter (all themes). Non-empty = only these themes are allowed. */
   themes: Theme[];
+  /** When true, stopwords are pre-revealed at game start */
+  revealStopwords: boolean;
   game: GameState;
   chatHistory: ChatMessage[];
   timerInterval?: ReturnType<typeof setInterval>;
@@ -122,6 +124,8 @@ export interface ClientRoom {
   gameMode: GameMode;
   difficulty: Difficulty;
   themes: Theme[];
+  /** When true, stopwords are pre-revealed at game start */
+  revealStopwords: boolean;
   game: ClientGameState;
 }
 

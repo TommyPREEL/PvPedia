@@ -51,6 +51,8 @@ export interface ClientRoom {
   difficulty: Difficulty;
   /** Empty = no filter (all themes allowed). Non-empty = only these themes. */
   themes: Theme[];
+  /** When true, stopwords are pre-revealed at game start */
+  revealStopwords: boolean;
   game: ClientGameState;
 }
 
