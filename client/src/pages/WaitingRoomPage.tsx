@@ -204,6 +204,24 @@ export default function WaitingRoomPage({ room, playerId, messages, isLoading, s
                       })}
                     </div>
                   </div>
+                  <div>
+                    <label className="flex items-center gap-3 cursor-pointer select-none">
+                      <div className="relative flex-shrink-0">
+                        <input
+                          type="checkbox"
+                          className="sr-only"
+                          checked={room.revealStopwords}
+                          onChange={() => socket.emit('set-reveal-stopwords', !room.revealStopwords)}
+                        />
+                        <div className={`w-10 h-5 rounded-full transition-colors ${room.revealStopwords ? 'bg-indigo-600' : 'bg-slate-700'}`} />
+                        <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${room.revealStopwords ? 'translate-x-5' : 'translate-x-0'}`} />
+                      </div>
+                      <div>
+                        <p className="text-sm text-slate-200">{t('revealStopwords')}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">{t('revealStopwordsDesc')}</p>
+                      </div>
+                    </label>
+                  </div>
                   <button
                     onClick={() => { setStartError(''); socket.emit('start-game', (r: { error?: string }) => { if (r?.error) setStartError(r.error); }); }}
                     disabled={!allReady || isLoading}

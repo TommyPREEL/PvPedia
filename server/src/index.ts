@@ -7,6 +7,7 @@ import {
   createRoom, getRoom, joinRoom, removePlayer, setPlayerReady, setLanguage, setGameMode,
   addChatMessage, submitWord, startGame, serializeRoom, issueSession,
   getSession, deleteSession, startDisconnectGrace, cancelGrace, getArticleWordSet, setDifficulty, setThemes,
+  setRevealStopwords,
 } from './roomManager';
 import { fetchRandomArticle, tokenizeText, getProximityMap } from './wikipedia';
 import { Language, Difficulty, Theme } from './types';
@@ -182,6 +183,14 @@ io.on('connection', (socket: Socket) => {
     if (!meta) return;
     if (!Array.isArray(themes)) return;
     const room = setThemes(meta.roomCode, meta.playerId, themes);
+    if (room) broadcastRoom(meta.roomCode);
+  });
+  // ── TOGGLE REVEAL STOPWORDS ────────────────────────────────────────────────────
+  socket.on('set-reveal-stopwords', (value: boolean) => {
+    const meta = socketToRoom.get(socket.id);
+    if (!meta) return;
+    if (typeof value !== 'boolean') return;
+    const room = setRevealStopwords(meta.roomCode, meta.playerId, value);
     if (room) broadcastRoom(meta.roomCode);
   });
   // ── START GAME ───────────────────────────────────────────────────────────────
