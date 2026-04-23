@@ -12,6 +12,7 @@ interface Props {
   proximityWordMap: Record<string, ProximityWordEntry>;
   titleProximityScores: number[];
   titleProximityWords?: (string | null)[];
+  recentlyRevealedWords: Set<string>;
   onHiddenWordClick: () => void;
 }
 
@@ -20,7 +21,7 @@ function normalizeForTitle(s: string): string {
 }
 
 export default function ArticleDisplay({
-  tokens, revealedWords, articleTitle, titleWordLengths, titleRevealed, proximityMap, proximityWordMap, titleProximityScores, titleProximityWords, onHiddenWordClick,
+  tokens, revealedWords, articleTitle, titleWordLengths, titleRevealed, proximityMap, proximityWordMap, titleProximityScores, titleProximityWords, recentlyRevealedWords, onHiddenWordClick,
 }: Props) {
   const { t } = useI18n();
   const revealedSet = new Set(revealedWords);
@@ -115,8 +116,9 @@ export default function ArticleDisplay({
         const isTitle = titleNorms.includes(norm);
 
         if (isRevealed) {
+          const isNew = recentlyRevealedWords.has(norm);
           return (
-            <span key={i} className={isTitle ? 'word-target' : 'word-revealed'}>
+            <span key={i} className={`${isTitle ? 'word-target' : 'word-revealed'}${isNew ? ' word-newly-revealed' : ''}`}>
               {token.value}
             </span>
           );
